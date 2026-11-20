@@ -1298,3 +1298,4 @@ not-reproduced, game-bug (Spore itself), wontfix, duplicate.
 | [BUG-9275](BUG-9275-lineages-cells-the-players-own-cells-appear-in-t.md) | open | feature | Cell | 2026-11-20 |  | Lineages cells: the players' own cells appear in the Cell stage as NPC species |
 | [BUG-9276](BUG-9276-civ-own-nations-a-partner-who-gets-a-species-of.md) | open | bug | Civ | 2026-11-20 |  | Civ own nations: a partner who gets a species of their own on a planet with no free city site gets no nation (it shares the host's) |
 | [BUG-9277](BUG-9277-civ-own-nations-with-a-partner-nation-in-the-wor.md) | open | bug | Civ | 2026-11-20 |  | Civ own nations: with a partner nation in the world and civ.own_money off, a guest who shares the host's nation no longer gets the shared money |
+| [BUG-9282](BUG-9282-suite-py-adds-civ-own-money-twice-on-build-amigo.md) | fixed | tooling | Tools | 2026-11-20 | unreleased | suite.py adds civ_own_money twice on build/amigos |
