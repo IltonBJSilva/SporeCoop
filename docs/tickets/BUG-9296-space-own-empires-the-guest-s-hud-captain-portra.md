@@ -25,10 +25,10 @@ money=100000 name='Bob's empire' ... ship=06664CDC captain=7CA81684 archetype=F9
 archetype F966D429 and its abilities set on my game", `coop.captain` on the guest: `captain=7CA81684/2B978C46/40626200`
 (its own creature 'Guleskate'). But the guest's HUD (the captain portrait at the bottom left, beside the planet map)
 still showed the host's captain "Brawgle E..." 60 s later, the same portrait as on the host's game
-(agentA596_space_guest.png, r96_space_guest2.png in the agents' folder). The ship 06664CDC is the host's design: expected, dev2
+(screenshots r96_space_guest.png and r96_space_guest2.png in the lane A driver folder agentA5). The ship 06664CDC is the host's design: expected, dev2
 has no own spaceship design (`mine ufo: 06664CDC '' (0 own)`).
 
-To reproduce: the steps above (E:\Repositorio\SporeCoop-wtgentA596_space.py then r96_space2.py), look at the
+To reproduce: the steps above (the lane A drivers agentA5/r96_space.py, then r96_space2.py), look at the
 guest's HUD portrait.
 
 ## Root cause
