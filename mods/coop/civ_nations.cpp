@@ -200,6 +200,12 @@ uint8_t wire_owner(void* city, uint8_t owner)
 
 uint32_t own_faction() { return g_on && guest() ? g_own : 0; }
 
+uint32_t own_species()
+{
+    void* n = own_faction() ? nation_by(g_own) : nullptr;
+    return n ? F<creations::Key>(n, kNationSpecies).instance : 0;
+}
+
 bool hold_foundings() { return g_on && !guest() && g_found.phase == Phase::Requested && !g_spawning; }
 
 void charge_build(void* city, float paid)

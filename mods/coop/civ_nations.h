@@ -43,6 +43,8 @@ void* paying_nation(void* city);
 uint8_t wire_owner(void* city, uint8_t owner);
 // guest: its own nation's political id (0: none: it plays the host's nation)
 uint32_t own_faction();
+// guest: its own nation's species (cCivilization +0x268 instance; 0: none) (BUG-9297)
+uint32_t own_species();
 // host: the SpawnNextCity of anybody else waits while a capital is being founded
 bool hold_foundings();
 // host: the city a guest built in its own nation's planner is paid from that nation (it paid in its own planner)

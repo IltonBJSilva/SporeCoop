@@ -13,6 +13,9 @@ bool own_money();
 int own_seat();
 // host: player `player` has an empire of its own: its Space money is not the host's (shared.cpp drops its changes)
 bool own_money_player(uint8_t player);
+// guest, BUG-9297: its own launch from Civ (civ_launch.cpp) started its game in Space: its player empire gets its own
+// captain (`species`, its nation's), name and colour. Call until it answers true (applied in this Space world).
+bool local_start(uint32_t species);
 
 } // namespace spaceempires
 

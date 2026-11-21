@@ -3752,3 +3752,13 @@ Found by eye in the sheets of lab 20261111-044257 (54 sheets); details and how t
 * Fixed (2026-11-21, fix/civ-own-camera): the guest's camera goes to its own city the way the game's "next city"
   button does (`civ.own_camera`, docs/re/civ.md#civ-own-camera).
 * Ticket: BUG-9294
+
+## A guest's own launch from Civ shows the host's captain until the host's world loads (2026-11-21, feat/lineages-space-guest-launch)
+<a id="issue-guest-launch-captain"></a>
+
+* What happens: after a guest's own Civ to Space launch (BUG-9295) its planet-side Space start is its local copy of the
+  host's Civ save: the HUD shows the host's captain and empire name until the guest leaves its home planet and the
+  host's world loads (then space_empires sets the guest's own captain, money and name).
+* Reproduce: the Kealeneon fixture on lane C, the batch driver agentC4/t1.py, a screenshot of the guest after its launch.
+* Ticket: BUG-9297.
+* Fixed on fix/space-captain (2026-11-21): the own launch's Space start gets the guest's own captain and empire name at once (switch space.own_captain_local).

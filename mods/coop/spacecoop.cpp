@@ -2476,6 +2476,9 @@ std::string debug(const std::vector<std::string>& a)
     if (a[0] == "land") { // tests: land on the active planet (the landing of Respawn)
         uintptr_t f = H->sym("SporeCoop::cAppModeSpace_LandOnActivePlanet");
         void* mode = a_ModeSpace ? *(void**)a_ModeSpace : nullptr;
+        // BUG-9300: not before the Space game exists (GetCurrentContext reads the simulator: a null one faulted at boot)
+        if (!in_space())
+            return "not in Space";
         if (!f || !mode || cdecl_call<int>(a_Context) != 1)
             return "not in a system";
         if (!cdecl_call<void*>(a_ActivePlanet) || !u || F<uint32_t>(u, kCinematic) || cinematic_playing() ||
@@ -2486,6 +2489,8 @@ std::string debug(const std::vector<std::string>& a)
     }
     if (a[0] == "takeoff") { // tests: planet -> system view (the jump's first step, as a zoom out does)
         void* mode = a_ModeSpace ? *(void**)a_ModeSpace : nullptr;
+        if (!in_space()) // BUG-9300 (see "land")
+            return "not in Space";
         if (!mode || !a_LeavePlanet || cdecl_call<int>(a_Context) != 0)
             return "not on a planet";
         if ((u && F<uint32_t>(u, kCinematic)) || cinematic_playing())

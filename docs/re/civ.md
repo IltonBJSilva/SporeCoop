@@ -2407,3 +2407,26 @@ docs/06-testing.md#testing-campaign-qa).
   host's species keys to local ones (`coop.creations`: "host species 292B8132 = 7DAB30B6 here").
 * The camera (BUG-9294) moved to the guest's capital 0.1 s after "has their own nation now" and again after each world
   load (moves=5 after a reload).
+## The guest's own launch starts with its own captain (2026-11-21, fix/space-captain)
+<a id="civ-guest-launch-captain"></a>
+
+BUG-9297, after [civ-guest-launch](#civ-guest-launch). Lane C, Kealeneon, driver agentC6/t9297.py.
+* ✔ (runtime) The guest's own Space start (its own game, from its copy of the host's Civ save) has the save's player
+  empire: name 'Keigh Empire', captain 292ACCC6 (the host's), the HUD planet panel 'Keigh Empire' (the panel is the
+  planet's, see [space-hud-planet-panel](space.md#space-hud-planet-panel)), while the host is still in its own
+  spaceship editor.
+* ✔ (runtime) Once the HOST's game is in Space, its K_EMPIRE answer reaches the guest's local start too (the same save
+  name: not `own_world::space_other`), and space_empires gives it the seat's captain, name and money there. So the
+  window of the bug is the guest's start while the host is not in Space yet (the host designs its ship after the
+  guest); the earlier "until the host's world loads" was that window plus the hold.
+* ✔ (runtime) On the guest's game its own (adopted) nation's species is 0 (cCivilization +0x268 of 000021D0; only the
+  host's game sets the seat's species there). The guest's own creature (`creations::mine(kCreature)`, here 7CFDDDC1 /
+  7CA81684 in two runs, the seat's species key) is the captain then.
+* ✔ (runtime) The Space start's lift-off cinematic stays on (letterbox, no HUD) until the player clicks through the
+  start texts: a gate on `world::cinematic_playing()` never let the captain be set before the host arrived.
+* Fix (switch `space.own_captain_local`): civ_launch.cpp keeps that species at the end of the spaceship vote; in its
+  Space phase it calls space_empires `local_start(species)` every second until applied: the player empire gets that
+  captain (cEmpire_SetCaptainKey), "<player>'s empire" and the player's colour, the HUD planet panel is rebuilt
+  (space.own_empire_panel), all put back before a save. `coop.civ launch` prints `species=` / `own_start=`,
+  `coop.space empires` `local=<n> (<why>)`.
+* Not changed: the money of that start is the save's until the host's K_EMPIRE (88,888 in the fixture both ways).

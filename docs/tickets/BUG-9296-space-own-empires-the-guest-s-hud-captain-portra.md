@@ -1,20 +1,21 @@
 ---
 id: BUG-9296
 title: Space own empires: the guest's HUD captain portrait still shows the host's captain (Brawgle) after its own captain key 7CA81684 is set
-status: open
+status: fixed
 kind: bug
 stage: Space
 reported: 2026-11-21
 source: agent smoke 0.7.15.96 lane A
 role: guest
 versions: 0.7.15.96
-fixed_in:
-branch:
-commits:
-tests:
+fixed_in: unreleased
+branch: fix/space-captain
+commits: 5fa28cf1, d5100ef6, fa93536d
+tests: tools/tests/coop_space_own_panel.py (lab test, not run in the Linux lab yet); agentC6/t9296.py (lane C, by hand)
 signature:
-docs: docs/re/space.md#space-own-ship-captain
-related: BUG-9279
+docs: docs/re/space.md#space-hud-planet-panel
+related: BUG-9279, BUG-9297
+switch: space.own_empire_panel
 ---
 
 ## Report
@@ -32,17 +33,35 @@ To reproduce: the steps above (the lane A drivers agentA5/r96_space.py, then r96
 guest's HUD portrait.
 
 ## Root cause
-Not analysed. Inferred: space_empires.cpp sets cEmpire +0xC4 (cEmpire_SetCaptainKey 0xC31100) on the guest's game,
-but the HUD's captain portrait (and probably the captain screen) was built from the save's captain at the Space start
-and is not refreshed; `coop.captain` also shows `species=0679B8C8` (the world player species, the host's) on both
-games. Not a crash, cosmetic as far as seen.
+CORRECTION (2026-11-21, fix/space-captain): the report's premise is wrong. The square beside the planet map is not the
+captain's portrait: it is the Space HUD's planet panel (window 0x05D646C8), the picture of the active planet's
+**citizen species** (SpaceGameUI_PlanetPortraitKey 0x1065F10: cPlanetRecord::GetCitizenSpeciesKey) with the planet
+owner empire's name under it (0x044D94D1). On Dopov (the host's home planet) its citizens are the host's species, so
+the picture is right; runtime: the picture was not the guest's captain png before or after a rebuild
+(`coop.space empires hud`: picture_is_captain=0), with the guest's captain 292846CB set. The captain is shown by the
+captain screen (the rank badge), which reads cEmpire +0xC4 whenever it opens. `coop.captain` `species=0679B8C8` is
+the world player species (the host's), as designed.
+The real defect behind the report: the panel is built only when the active planet changes
+(SpaceGameUI_UpdatePlanetPanel 0x106A500); space_empires renames the guest's player empire to "Bob's empire" after
+that, so the panel kept the save's name "Brawgle Empire" (the host's) next to the host's species, which read as "the
+host's empire / captain". A rebuild (the next planet, or `coop.space empires hud refresh`) showed "Bob's empire".
 
 ## Fix
-<!-- what changed and why; the switch to turn it off for tests (coop.fix <name>) -->
+space_empires.cpp: right after the guest's own empire (name, colour, captain) is applied on its game the planet panel
+is rebuilt (SpaceGameUI_UpdatePlanetPanel, outside the frame): it shows the guest's own empire name at once. Switch
+`space.own_empire_panel` (off: the panel keeps the name it was built with, 0.7.15.96). The picture stays the planet's
+citizens (the host's species on the host's planets). Not done: the host's colonies under the host's name on the
+guest's game (they are the guest's player empire's there): see docs/re/space.md#space-hud-planet-panel.
+Test seams: `coop.space empires hud [refresh]`, `coop.space empires captain <hex>`.
 
 ## Verification
-<!-- the test: FAIL without the fix, PASS with it, each with its lab run id (out/lab/YYYYMMDD-HHMMSS);
-     or a line `no-fail-run: <reason>` (docs only, regression only, not reproducible) -->
+Lane C (Windows, Steam exe 3010a413, instances 5/6), Dopov (a full copy of the dev1 profile's Game0), the host founds
+the guest's seat with its own creature 292846CB (`coop.space empires found 1 292846CB`), driver agentC6/t9296.py:
+- FAIL, `coop.fix space.own_empire_panel off` on the guest: its empire 'Bob's empire' with captain 292846CB, its HUD
+  panel 'Brawgle Empire' (agentC6/t9296_off.log, t9296_off_guest.png).
+- PASS, switch on: the guest's panel 'Bob's empire' at once (panel=1), the host's panel keeps 'Brawgle Empire'
+  (agentC6/t9296_on.log, t9296_on_guest.png, t9296_on_host.png). No crash or fault report.
 
 ## History
 - 2026-11-21: opened.
+- 2026-11-21: CORRECTION of the premise (the planet panel, not the captain); fixed on fix/space-captain (the panel is rebuilt after the own empire is applied).
