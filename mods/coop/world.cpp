@@ -692,6 +692,17 @@ static unsigned g_collect_failures;    // tests (BUG-0847): shares refused becau
 // planet: the old planet id indexed a star of the new galaxy without planets (null read in
 // cStarRecord::GetPlanetRecord). A load from the menu first clears a player record left there.
 static unsigned g_menu_player_cleared; // tests
+// BUG-9309: the game runs that reset only when the mode left is a simulator mode (the mode change 0xB336E0); a stage
+// quit to the menu from an in-stage editor (Editor -> Galaxy menu) skips it and the creature stage's own teardown: the
+// player record, the simulator context (SpacePlayerData +0x10, 0 = on a planet) and the stage's objects stay. The next
+// load faulted in its cSpaceGfx set-up (0xC70A20 with no active planet, "cPlanet::GetRingEffect+0x90" in crash reports)
+// and, with the context reset by hand, in the creature HUD's goal refresh (0xC2FF9A, the object [0x169E3E8] null). The
+// game itself never does it: its Options menu in an in-stage editor greys out "Exit to Main Menu". Our quit message
+// (coop.menu, post_quit_to_menu) is now refused in an editor too. Off: posted in an editor as before (0.7.15.96).
+static bool g_no_editor_quit_fix = true;
+COOP_FIX("world.no_editor_quit", "BUG-9309", g_no_editor_quit_fix,
+         "world: no quit to the galaxy menu from an in-stage editor (the game greys out its own Exit to Main Menu there)");
+static unsigned g_editor_quits_refused; // tests (BUG-9309)
 static unsigned g_shares_dropped;      // shares dropped because their player left (tests)
 static unsigned g_loads_dropped;       // guest: queued loads dropped at a session end (tests)
 static unsigned g_loads_held;          // guest: queued loads moved behind an editor (tests)
@@ -1216,6 +1227,11 @@ bool post_quit_to_menu(std::string& err)
 {
     if (g_adventure_fix && game::mode_id() == modes::kScenario) { // BUG-0854
         err = "leave the adventure through its own menu";
+        return false;
+    }
+    if (g_no_editor_quit_fix && game::mode_id() == modes::kEditor) { // BUG-9309
+        g_editor_quits_refused++;
+        err = "leave the editor first (the game offers no Exit to Main Menu in an editor)";
         return false;
     }
     uintptr_t get = H->sym("App::IMessageManager::Get");
@@ -1777,6 +1793,16 @@ bool load_slot(const std::wstring& slot, const std::string& planet_file, std::st
     return true;
 }
 
+// BUG-9309 (tests): the simulator context in the galaxy menu (SpacePlayerData +0x10), -2 when there is no player record
+static int menu_context()
+{
+    uintptr_t pd = H->sym("Simulator::SpacePlayerData::ptr"), get = H->sym("Simulator::GetCurrentContext");
+    void* data = pd && skg::readable((void*)pd, 4) ? *(void**)pd : nullptr;
+    if (!get || !data || !skg::readable((char*)data + 0x10, 4))
+        return -2;
+    return skg::cdecl_call<int>(get);
+}
+
 static uint32_t g_loads_started; // BUG-9265
 uint32_t loads_started() { return g_loads_started; }
 
@@ -2032,6 +2058,11 @@ std::string status()
              slotfs::g_move_retries); // tests (BUG-0847, BUG-0848)
     s += b;
     snprintf(b, sizeof b, "stale menu player cleared %u\n", g_menu_player_cleared); // tests (BUG-0284)
+    s += b;
+    // tests (BUG-9309): quits refused in an editor; the context the galaxy menu holds now (-1 after the menu's own
+    // reset, the context of the stage left when the game skipped it; -3 outside the menu)
+    snprintf(b, sizeof b, "editor quits refused %u (menu context %d)\n", g_editor_quits_refused,
+             game::mode_id() == modes::kMenu ? menu_context() : -3);
     s += b;
     if (g_in.active) {
         snprintf(b, sizeof b, "receiving world: %u/%u bytes\n", g_in.received, g_in.offer.total_size);
