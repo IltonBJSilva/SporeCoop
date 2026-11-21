@@ -486,3 +486,20 @@ anchor so other docs can link to it:
   build/amigos-97 with no change of feat/space-late-launch, while fix/civ-own-camera's build passes (the code layout).
 * Reproduce: a build/amigos-97 build in WSL, then `python3 tools/tests/triage_symbols_check.py build <llvm-mingw dir>`.
 * Ticket: BUG-9303.
+
+## Space: a guest homeworld the host's allies mirror never shows (2026-11-21, feat/space-guest-home)
+<a id="issue-space-guest-home-unmirrored"></a>
+
+* What happens: the host picked the guest's homeworld 0559A013 (star 5873683); the guest's game made it its colony, the
+  host's star stayed nobody's and its allies mirror listed only the guest's older 0059xxxx colonies (also after a reload).
+* Reproduce: E:\Repositorio\SporeCoop-wt\sgh\t3.py setup on lane A (not every run: the host's pick differs per run);
+  `coop.space empires home` on both games, `coop.space allies list` on the host.
+* Ticket: BUG-9315.
+
+## Space: a guest's ship shows as a white box (2026-11-21, feat/space-guest-home)
+<a id="issue-space-white-ship"></a>
+
+* What happens: the guest's HUD ship portrait and a ship in its home system are a plain white rounded hull. Inferred:
+  the guest's own design 'Bob9276' is the spaceship editor's bare hull (made by an earlier test), then not a bug.
+* Reproduce: the BUG-9310 driver E:\Repositorio\SporeCoop-wt\sgh\t2.py on lane A, screenshot of the guest at its homeworld.
+* Ticket: BUG-9314.

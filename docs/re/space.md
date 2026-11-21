@@ -3682,6 +3682,47 @@ Pradnie (the guest's party seat 1 with species 0, a start-any record with creatu
 * The Space page (F9) of the guest has "Your homeworld: <planet> (<star>)" with "Fly there" (spacecoop::travel).
 * Pitfall seen on the way: every host save (the autosave "a colony founded" too) showed "Your alliance with the Bob's
   empire has been severed." on the host: the allies mirror's save-time undo (BUG-9312, open).
+  CORRECTION (2026-11-21, feat/space-guest-home): not the undo itself (it posts no message) but the game's attitude
+  pass breaking the alliance made again after the save (rel 0): [space-mirror-ally-break](#space-mirror-ally-break).
 * Not done: the guest's player empire's home (cEmpire +0xB0 / +0xB4) stays the host's home on its game (the "return to
   your homeworld" of a destroyed ship, the home marker): changing it would make the guest's roster skip the colony as
   "home" (space_map.cpp kept_roster) and needs its own undo before the save.
+
+## The game's attitude pass breaks the allies mirror's alliance (2026-11-21, feat/space-guest-home)
+<a id="space-mirror-ally-break"></a>
+BUG-9312. Lane A, Steam exe 3010a413 (the GOG 2024 code), dev1's Pradnie, the guest with an empire of its own
+([space-guest-home](#space-guest-home)).
+* ✔ **Who posts "Your alliance with the <name>'s empire has been severed."**: only `BreakAlliance` 0xD01E70 (message
+  0x4445D44 at 0xD01F2B, after clearing flag bit 1 both ways and `cEmpire_RemoveAlly` both ways). `cEmpire_RemoveAlly`
+  0xC32990 itself is a plain vector erase (no message): the allies mirror's save-time undo (set_relation off: flags,
+  RemoveAlly / RemoveEnemy, contact flags) posts nothing.
+* ✔ BreakAlliance has two callers: 0x101341C in the **attitude check** `SporeCoop::Empire_AttitudeCheck` 0x1013370
+  (thiscall(this, cEmpire* npc, float dt) ret 8) and 0x102CDC6 (a console-like helper that also applies event
+  0x526E521). The attitude check: rel = CalculateRelationship(npc, player); allied and rel below a tuning (0x1040860)
+  -> BreakAlliance; below another (0x1040850) while dropping -> a warning event; not at war and below 0xCBCC70 ->
+  DeclareWar. It runs from the per-tick `Empire_AttitudeUpdate` 0x1013650 (pass 1: a list 0x1012860 fills; pass 2: a
+  round robin of up to 100 empires of the star manager's map, a pol seen the first time is only time-stamped).
+* ✔ Runtime (diagnostic hook on BreakAlliance): `BreakAlliance from 0x101341C a=<mirror pol> b=<player pol> rel=0.00
+  flags=2`, about 4 s after a host save (the mirror's re-apply after the 3 s hold) and after the autosave "a colony
+  founded". The mirror's relation is 0.00: the mod sets the alliance flags and vectors, not the relation events, and
+  0 is below the break tuning. Every time the alliance was made again (each re-apply after a save) the next visit of
+  the attitude pass broke it; the mirror then stayed unallied until the next save made it again.
+* ✔ **When**: while the host's ship is in (or near) a star system of the mirror. Lane A: the host jumped into one of the
+  mirror's stars: the alliance was broken at once (before any save), and again after each save's re-apply. Elsewhere
+  (the host at its own home, 3 saves) the pass never checked the mirror (0 calls). The reports saw it right after a save
+  because the tests fly both ships to the guest's homeworld before saving. Pass 1's list (0x1012860) is inferred to be
+  the empires near the player (~); a break left the mirror unallied (the game's flags 0, the panel's neutral face) until
+  the next re-apply.
+* ✔ **The attitude check runs every frame** for an empire near the player: with only the BreakAlliance call dropped the
+  host's log had 1254 dropped breaks in about a minute in the mirror's system (and the relation went to -1.50, cause not
+  looked into). Its event 0x4CA76FBD (0xDD85E0, before the break) ran each time too.
+* The fix (space_diplomacy.cpp, `diplomacy.mirror_ally`): a hook on `Empire_AttitudeCheck` returns at once for an
+  allies mirror (spaceext::allies_mirror_pol), and the BreakAlliance hook drops a break between the player's empire and a
+  mirror from any other caller: the players' alliance is the mod's (allies set_relation, spaceext::relation in rivals
+  mode). `coop.space diplomacy rel <pol>` prints the game's flags of (pol, my empire) and the counts. The save-time undo is unchanged (flags 0 during the save, 2 again after it): the save
+  still holds no alliance with the mirror.
+* Not done: a relation value for the mirror (an event so CalculateRelationship is above the tunings) would also keep
+  the attitude pass's warning and war branches quiet; with rel 0 neither fired (no war declared, no warning seen).
+* A guest homeworld the host does not mirror (seen once, lane A): the host picked 0559A013 (star 5873683 'Satis-3'),
+  the guest's game made it its colony (mine=1), but the host's allies mirror listed only the 0059xxxx planets of the
+  guest's roster and the host's star stayed nobody's (owner FFFFFFFF), also after a reload: BUG-9315.
