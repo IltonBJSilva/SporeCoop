@@ -10,7 +10,7 @@ role: host
 versions: 
 fixed_in: unreleased
 branch: feat/custom-cells
-commits:
+commits: 14d351a9
 tests: tools/tests/coop_custom_cells.py (suite custom_cells, twin custom_cells_off); manual two-instance runs on lane D
 signature:
 docs: docs/re/cell.md#cell-custom-cells

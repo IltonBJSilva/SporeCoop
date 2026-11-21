@@ -184,7 +184,7 @@ inline const Def kDefs[kCount] = {
      "on: a guest who starts on the planet in the Cell stage chooses its own cell (diet, name, colour), kept per player; off: a guest plays the host's cell or one of its own creations (F9)",
      1, 0, 1, Scope::Session, "start_choice", false},
     {"cell.lineage_cells", "Cell", "Player cells in the pool",
-     "on: about one in six spawns of a creature species of the tide pool takes the look of one of the players' own cells (from their My Creations; never a cell a player plays now) with the same diet, so a carnivore hunts and a herbivore grazes; off: only the game's own species",
+     "on: cells of the players' own species around them take the look of a partner's current cell (BUG-9285), and with Custom cells in the pool the cells the players made swim as native species too; off: only the game's own species",
      1, 0, 1, Scope::Live, "lineage_cells", false},
     {"cell.custom_cells", "Cell", "Custom cells in the pool",
      "on (with Player cells in the pool): the cells the players made (their My Creations, not the cells they play now) also swim as about one in six spawns of a native species with the same diet, only species of the player's size or smaller (never a giant); off: only the players' current cells",
