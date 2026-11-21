@@ -2383,3 +2383,27 @@ first city, once per world. ✔ at runtime (lane B, 2026-11-21): Epina, the gues
 (441 m with the switch off); Kealeneon (where the LookAt attempt broke the camera), 120 m from its own city and 314 m
 from the host's (413 m / 120 m off), the camera's height (173 / 179 m) and its angle to the ground (forward . up -0.84
 both) unchanged, and the four arrow keys still move it (11-30 m per three presses).
+
+## The QA campaign: a guest's purchase of a city and its citizens (2026-11-21, fix/qa-campaign)
+<a id="civ-qa-campaign"></a>
+
+A new two-player game played from Cell to Space on lane B (0.7.15.96 = build/amigos-97;
+docs/06-testing.md#testing-campaign-qa).
+* ✔ (runtime) A city the guest takes is the guest's on both games: the guest's game's own buy (`coop.civ buycity 3
+  1000`, cCity_Buy through the mod's hook, civ.buy_city BUG-0877) of an NPC city made it nation 0000262E (the guest's
+  own) with owner 1 in `coop.civ` on both games; the guest nation's money went 2000 -> 1000 (`coop.wallet` on the
+  guest, the seat's money on the host), the host's stayed 2000; the guest nation's city count 1 -> 2. The taken
+  nation's two vehicles were gone (the game's own capture). A vehicle the guest bought in that city was nation
+  0000262E, owner 1 on both games and paid by the guest's nation; the host's purchase there was refused ("this city
+  belongs to player 1"). The vehicle's purpose followed the nation (economic, its capital's specialty), not the taken
+  city's (military).
+* ~ The guest's capital (an economic city) gives economic vehicles only, so the guest's way to take a city is the buy;
+  a military capture by a guest was not tried (no military city of its own).
+* ✗ BUG-9304: on the guest's own game its capital's 19 citizens were the host's species 292B8132 while the host's game
+  showed them as the guest's 7C8BEFA2 (`coop.civ nations citizens`, the camera at the capital on each game). Not a
+  timing of the species key (still so after a rejoin) and not the player-nation path (still so with
+  civ.nations_native off on the guest). Inferred: the key does not resolve to a species profile on the guest's game and
+  SetSpeciesProfile's null fallback gives the player species (docs/re/creature.md, the PS table). The guest maps the
+  host's species keys to local ones (`coop.creations`: "host species 292B8132 = 7DAB30B6 here").
+* The camera (BUG-9294) moved to the guest's capital 0.1 s after "has their own nation now" and again after each world
+  load (moves=5 after a reload).

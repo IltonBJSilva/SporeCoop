@@ -458,3 +458,22 @@ anchor so other docs can link to it:
   host's world loads (then space_empires sets the guest's own captain, money and name).
 * Reproduce: the Kealeneon fixture on lane C, the batch driver agentC4/t1.py, a screenshot of the guest after its launch.
 * Ticket: BUG-9297.
+
+## Civ: a guest's own capital is peopled by the host's species on the guest's game (2026-11-21, fix/qa-campaign)
+<a id="issue-guest-citizens-host-species"></a>
+
+* What happens: with own nations, the guest's capital's citizens are the guest's species on the host's game but the
+  host's species on the guest's own game, so the guest sees its partner's creatures walking in its own city.
+* Reproduce: a new game played to Civ with each player's own creature (or a Civ save where the guest's nation was
+  founded); the camera at the guest's capital on both games, `coop.civ nations citizens` (city_pol of the guest's
+  nation: the guest species on the host, the host species on the guest). Screenshot pair E:\Repositorio\SporeCoop-wt\qa\civ_cit.png.
+* Ticket: BUG-9304.
+
+## Creature: a guest's brain cinematic under the host's pause stays black (2026-11-20, fix/campaign-qa)
+<a id="issue-guest-brain-cine-paused"></a>
+
+* What happens: the host pauses (Options menu) while the guest's brain grows; the guest's brain-upgrade cinematic
+  (F6A4B1E4) starts while its game waits for the host and stays black with no caption; the guest's own progress does not
+  reach the host meanwhile (the host waits for a partner whose bar is already full). Esc on the guest ends it.
+* Reproduce: Creature, host Esc and keep the menu open, guest `coop.dna gain 3000`, host closes the menu.
+* Ticket: BUG-9289
