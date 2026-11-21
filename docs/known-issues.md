@@ -458,3 +458,12 @@ anchor so other docs can link to it:
   reach the host meanwhile (the host waits for a partner whose bar is already full). Esc on the guest ends it.
 * Reproduce: Creature, host Esc and keep the menu open, guest `coop.dna gain 3000`, host closes the menu.
 * Ticket: BUG-9289
+
+## Tribe -> Civ: a host stall over 30 s in the City Hall editor's opening drops the guest (2026-11-20, fix/campaign-qa)
+<a id="issue-host-editor-stall-timeout"></a>
+
+* What happens: after the Tribe -> Civ vote the host's game can take more than 30 s to open the City Hall editor (the
+  game's own palette textures, a loaded PC); its guests' sessions end with "connection to host lost (timeout)", the
+  host reaches Civ alone. Joining again brings the guest into Civ.
+* Reproduce: not on demand; the end of Tribe on a busy PC (two lanes at once).
+* Ticket: BUG-9291

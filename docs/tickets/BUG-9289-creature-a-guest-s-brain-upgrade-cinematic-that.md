@@ -37,6 +37,9 @@ gain (`player 1 Bob: full=0 pct=0`, record dna=175 bar=60) and the host's evolve
 4. Host: close the menu. The guest's screen stays black under the cinematic; `coop.progress` on the host keeps the guest
    at 0 %. Esc on the guest ends it.
 
+Seen again only with the host paused: a second run (planet Epina, the same 3000 DNA gain on both games, the host
+not paused) had the guest's brain captions close normally and the guest's bar reached the host at once.
+
 ## Root cause
 Not analysed yet. Observed: the cinematic starts while the mod holds the guest's game for the host's pause (time
 paused); its caption never shows. Inferred: the brain cinematic's caption step needs the game time the hold stopped,
