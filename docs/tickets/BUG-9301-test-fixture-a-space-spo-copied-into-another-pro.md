@@ -10,7 +10,7 @@ role: host
 versions: 0.7.15.96
 fixed_in:
 branch: fix/space-captain
-commits:
+commits: fa93536d
 tests:
 signature: Simulator::cStarRecord::GetPlanetRecord+0x12 (read of 0) < cStarManager::GetPlanetRecord+0x3B
 docs: docs/06-testing.md

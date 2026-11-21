@@ -10,7 +10,7 @@ role: guest
 versions: 0.7.15.96
 fixed_in: unreleased
 branch: fix/space-captain
-commits:
+commits: 5fa28cf1, d5100ef6, fa93536d
 tests: tools/tests/coop_space_own_panel.py (lab test, not run in the Linux lab yet); agentC6/t9296.py (lane C, by hand)
 signature:
 docs: docs/re/space.md#space-hud-planet-panel

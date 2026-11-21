@@ -10,7 +10,7 @@ role: host
 versions: 0.7.15.96
 fixed_in: unreleased
 branch: fix/space-captain
-commits:
+commits: 6d26b051
 tests: agentC6/t9300.py (lane C, by hand)
 signature: Simulator::GetCurrentContext+0x5 (data 0x00000010), module call coop.dll spacecoop::debug
 docs:

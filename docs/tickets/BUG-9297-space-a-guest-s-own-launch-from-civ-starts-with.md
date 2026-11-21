@@ -10,7 +10,7 @@ role: guest
 versions: 0.7.15.2
 fixed_in: unreleased
 branch: fix/space-captain
-commits:
+commits: 5fa28cf1, d5100ef6, fa93536d
 tests: tools/tests/coop_civ_launch_captain.py (manual driver, Windows lane; the lab has no Civ -> Space guest launch fixture), agentC6/t9297.py (lane C)
 signature:
 docs: docs/re/civ.md#civ-guest-launch-captain
