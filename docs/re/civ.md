@@ -2447,3 +2447,24 @@ HUD "Military"; the QA campaign's guest capital was spec=1, economic). The NPC c
   host's, not at the same spots on the guest's); not checked further.
 * ✗ BUG-9311: in that run, when the guest left the session while in Civ, its game founded a capital for seat 1 in its
   own copy of the host's world (the host-side founding runs on a game without a session).
+
+## A received copy of the host's world has no nations' work (2026-11-21, fix/guest-leave)
+<a id="civ-received-world-no-founding"></a>
+
+BUG-9311: after `coop.leave` a guest is no guest any more (no session), but its game still plays its copy of the host's
+world, the slot it received (Games\GameN with the marker sporecoop.txt: `host_slot <id>`, `host <name>`,
+`planet <name>`). civ_nations' `authority()` was `in_civ() && !guest()`, so the host-side work (founding the next
+partner seat's capital, the alliance raise, the team campaign's levels and "planet won") ran there.
+* ✔ (code, runtime lane C) The rule now: a game that is not hosting and plays a received slot
+  (`world::playing_received_world()`: the save database's folder holds the marker, read at most once a second) has no
+  authority; its own worlds (no marker: the tests' copies remove sporecoop.txt) and a hosted session keep it. Switch
+  `civ.nations_received_world`; `coop.civ nations` prints "received world 1 (held N, fix 1)".
+* ✔ (runtime lane C, t9311.py) Without the rule, the guest's game after the leave read the copy's Tribe founders (lane
+  B's Mirey copy had them and no Civ roster), wanted a capital for the guest's seat and, with no free site, took over
+  the NPC nation 000021D0 ("no free site: seat 3's nation takes over NPC nation"), set its city's species key and wrote
+  kealeneon.spo.duonations into the received slot. With it: "this game plays a copy of another player's world without
+  a session: no founding here", nothing written.
+* ✔ (runtime) The party roster (party.cpp) is loaded only on a host and is empty on the guest's game after the leave
+  (`coop.party`: planet=- seats=0): the wanted seats came from the copy's Tribe founders, not the party.
+* ~ A player who hosts a copy received earlier (the marker stays) keeps the host's work while hosting, not while
+  playing it alone; the original host's nation is the save's player civ there. Not tried.

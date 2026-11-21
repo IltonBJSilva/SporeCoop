@@ -3752,3 +3752,24 @@ Found by eye in the sheets of lab 20261111-044257 (54 sheets); details and how t
 * Fixed (2026-11-21, fix/civ-own-camera): the guest's camera goes to its own city the way the game's "next city"
   button does (`civ.own_camera`, docs/re/civ.md#civ-own-camera).
 * Ticket: BUG-9294
+
+## Menu: a guest crashed loading the host's world after leaving its own creature editor (2026-11-21, fix/civ-citizens)
+<a id="issue-guest-ringeffect-after-editor"></a>
+
+* What happens: a guest left the session while in its own creature editor (the vote's editor), its game went to the
+  galaxy menu; at its next join the load of the host's world faulted at cPlanet::GetRingEffect+0x90 (cSpaceGfx init).
+* Reproduce: seen once (lane B campaign replay); the steps are in the ticket.
+* Ticket: BUG-9309.
+* Fixed (fix/guest-leave): coop refuses its own quit to the galaxy menu in an in-stage editor, as the game does
+  (world.no_editor_quit); docs/re/space.md#space-editor-quit-menu.
+
+## Civ: a guest's game that left the session founds a capital in its copy of the host's world (2026-11-21, fix/civ-citizens)
+<a id="issue-guest-alone-founds-capital"></a>
+
+* What happens: with own nations, a guest that leaves while in Civ has its game run the host's founding: a capital for
+  seat 1 in its local copy, a roster and a save of that copy in its received slot.
+* Reproduce: a Civ session with the guest's nation, `coop.leave` on the guest while in Civ; its log shows "civ nations:
+  founding seat 1's capital".
+* Ticket: BUG-9311.
+* Fixed (fix/guest-leave): a game that plays a received copy of another player's world without hosting runs no
+  nations' work (civ.nations_received_world); docs/re/civ.md#civ-received-world-no-founding.

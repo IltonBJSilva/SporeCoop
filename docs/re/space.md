@@ -3545,3 +3545,31 @@ BUG-9279, after [space-own-empires](#space-own-empires). Lane C, Steam exe 3010a
   star +0xB0, home planet +0xB4, stars +0x88); the host's colonies are its colonies on the partner's game. A home of its
   own would be a record-level colony of its species (15.2) set as +0xB4, and the host's colonies shown as the host's
   mirror empire (the reverse of 15): both untried.
+
+## A stage left for the galaxy menu from an in-stage editor (2026-11-21, fix/guest-leave)
+<a id="space-editor-quit-menu"></a>
+
+BUG-9309 (lane B, then lane C with `t9309.py` in E:\Repositorio\SporeCoop-wt\guestleave): a guest in its own creature
+editor left the session, the driver sent `coop.menu` (the game's quit message 0x4715068) while it was still in the
+editor; at its next join the load of the host's world faulted.
+* ✔ (objdump of the Steam text dump, runtime lane C) The fault "cPlanet::GetRingEffect+0x90" is the next function,
+  0xC70A20 `cPlanet_GetPlanetType` (thiscall: `[this+0x13C]` record ? record+0x28 : 2, no null check of this), called
+  with a null planet by 0x10361D0 (a cSpaceGfx set-up step by context: switch on `GetCurrentContext`; context 0 reads
+  `Simulator_GetActivePlanet()`'s type). The galaxy menu held context 0 (`SpacePlayerData +0x10`) and no active
+  planet (BUG-0284's clear nulls +0x04 but not the context).
+* ✔ (disassembly) The game's mode change 0xB336E0 (old mode, new mode) runs `GalaxyMenu_SimReset` 0xB32C30 (cdecl, one
+  argument it does not read) only when the mode left is a simulator mode (0x1654C00..0x1654C10) and the new one the
+  galaxy menu; the reset ends in `SpacePlayerData_Reset` and `SetCurrentContext(-1)` (0x1021850). Editor 0xDBDBA1 ->
+  menu skips it, and the creature stage's own teardown with it: the menu keeps the player empire, context 0 and the
+  stage's objects. `coop.status` prints the menu's context ("menu context", -1 after the game's reset).
+* ✔ (runtime) The game never takes that path itself: in an in-stage editor its Options menu (the spiral button)
+  greys out "Exit to Main Menu" and "Quit Spore" (screenshot guestleave\esc_editor2.png). Only a quit message posted
+  by a mod reaches it: coop's `post_quit_to_menu` (coop.menu; via_menu_tick posts it only in a stage).
+* ✗ (runtime, two tries) Repairing the menu afterwards is not enough: with only the context reset to -1, and then
+  with the game's whole `GalaxyMenu_SimReset` called in that menu, the next Creature load faulted later at 0xC2FF9A
+  (`mov [eax+0x20],edx` with the global 0x169E3E8 null, a creature HUD object made by 0xE02BD4 and released by
+  0xE037A9; chain names "SpeciesGoal_Refresh+0x3EA < MissionCardPanel_HasCard+0x3E1"). The stage's teardown for the
+  editor's mode is missing too.
+* Fix (world.no_editor_quit): `post_quit_to_menu` refuses in the editor mode, as the game's own menu does; a driver
+  leaves the editor first (red cross or check) and then asks for the menu, which then gets the game's own reset
+  (context -1).

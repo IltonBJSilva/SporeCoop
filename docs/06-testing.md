@@ -9349,3 +9349,20 @@ next to them. What each step needs, and how long it took (one PC, both games on 
   work; `coop.space takeoff` (the game's planet -> system step) did, on the host, then on the guest once its game
   held the host's world (`coop.civ launch` phase=space).
 The whole campaign took 55 minutes, with three save/reloads.
+
+## A guest that leaves in its editor or in Civ: the lane C drivers (2026-11-21, fix/guest-leave)
+<a id="testing-guest-leave-drivers"></a>
+
+* BUG-9309 (Windows lane C, manual driver t9309.py, ~6 min): Creature save Boheus of the Dopov galaxy copy, the
+  guest's own editor by `coop.vote editor`, `coop.leave` on the guest, `coop.menu` on the host and on the guest while it
+  is still in its editor, the host loads again and hosts, the guest joins. With `coop.fix world.no_editor_quit off`
+  the guest's load faults at 0xC70A20 every time; with the fix the guest's `coop.menu` answers "leave the editor
+  first", the driver clicks the red cross (1383,1062 in a 1440x1080 window, scaled to the window) and asks again.
+  `coop.status` "editor quits refused N (menu context C)": C is -1 in a menu the game reset. Lab twin: editor_quit.
+* BUG-9311 (manual driver t9311.py, ~3 min): Kealeneon, the guest's nation founded by the host, the guest plays the
+  reloaded world (the host re-shares after the founding: wait for "own nation" on the guest before the leave, a leave
+  during that reload goes to the menu instead), then `coop.leave` on the guest, which stays in Civ. The copy needs a
+  seat to found: lane B's had Tribe founders and no Civ roster; the driver renames the copy's .duonations to
+  .duofounders (pick the received slot by the newest sporecoop.txt: the guest alternates two slots).
+* Pitfall: a Creature or Civ save copied alone into another profile's Game0 crashes its load (BUG-9301); copy whole
+  Game0 folders (the Dopov galaxy copy holds Boheus as a Creature save).

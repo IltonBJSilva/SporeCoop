@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- A guest whose session ended while it was in its own editor could crash at its next join while loading the host's
+  world (cPlanet::GetRingEffect): a quit to the galaxy menu is no longer sent from an editor, the editor is left first,
+  as the game's own menu requires (BUG-9309).
+- Civilization: a guest that left the session while in Civ no longer founds a capital for itself in its copy of the
+  host's world (BUG-9311).
+
 ## [0.7.15.5] - 2026-11-19
 
 A fix for players who could not leave the Tribe stage: the City Hall editor at its end could not be named after a
