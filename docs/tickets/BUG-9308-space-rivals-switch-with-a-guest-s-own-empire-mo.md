@@ -10,7 +10,7 @@ role: host
 versions: 0.7.15.96
 fixed_in:
 branch: feat/rivals-stages
-commits:
+commits: 17a42c41
 tests: by hand on lane A with agentRV/space3.py (the batch folder, not in the repo); space3_on.log PASS, space3_off.log FAIL
 signature: coop.space rivalry: after "mode rivals" and "mode allies" the sum of the players' money is lower than before
 docs: docs/re/space.md#space-rivals-own-money

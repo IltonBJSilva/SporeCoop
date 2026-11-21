@@ -262,7 +262,9 @@ static void host_tick(double now)
     const uint32_t m = game::mode_id();
     const uint8_t s = stage_of_mode(m);
     if (!race_on(m)) {
-        if (g_race.stage != kNone && s != g_race.stage) {
+        // another stage, or this stage switched to Together (or a partner left): the race ends. An editor, a load or a
+        // menu (no stage) keeps it: the host's evolution inside the stage must not restart the race
+        if (g_race.stage != kNone && s != kNone) {
             g_race = Race{};
             send_race(now, true);
         }

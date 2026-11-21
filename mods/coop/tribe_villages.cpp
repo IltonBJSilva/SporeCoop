@@ -17,6 +17,7 @@
 // order them (the orders go to the host as before).
 #include "tribe_internal.h"
 #include "tribe_seats.h"
+#include "rivals.h"
 
 #include <array>
 
@@ -236,6 +237,8 @@ static uint32_t ally_pair(void* mgr, uint32_t a, uint32_t b)
 static void ally_task(void*)
 {
     if (!g_villages || !active() || !is_host() || world::load_queued())
+        return;
+    if (rivals::stage_rivals(rivals::kTribe)) // BUG-9306: Rivals: no permanent alliance, every alliance with an NPC its own
         return;
     refresh_villages();
     void* mgr = rel_mgr();
@@ -709,6 +712,94 @@ static void* SK_CDECL h_Cursor()
     return cursor;
 }
 
+// ---- BUG-9306: the Rivals Tribe stage (rivals.h, docs/11-rivals.md 11.3.3): every player's village races for the NPC
+// tribes. Host only: a player's count is the NPC tribes allied with its own village (CalculateRelationship(npc, village)
+// at the allied threshold, manager +0x1C); the host's is at least its game's own goal count (cPlayer +0x10F0: the wins of
+// its player tribe, alliances and conquests). A conquered NPC tribe (+0x556) is taken (not free) but credited to nobody
+// else: who conquered it is not known yet (docs/re/tribe.md#tribe-rivals-race). total: every NPC tribe of the planet.
+static float* host_goal(float* need = nullptr)
+{
+    static uintptr_t nmg = H->sym("Simulator::cGameNounManager::Get");
+    void* nm = nmg ? skg::cdecl_call<void*>(nmg) : nullptr;
+    void* p = nm && skg::readable((uint8_t*)nm + 0x74, 4) ? F<void*>(nm, 0x74) : nullptr;
+    if (!p || !skg::readable((uint8_t*)p + 0x10F0, 8))
+        return nullptr;
+    if (need)
+        *need = F<float>(p, 0x10F4);
+    return (float*)((uint8_t*)p + 0x10F0);
+}
+
+static bool rivals_count(std::vector<uint8_t>& ids, std::vector<int>& won, int& total, int& free_left)
+{
+    static uintptr_t calc = H->sym("Simulator::cRelationshipManager::CalculateRelationship");
+    if (!g_villages || !is_host() || game::mode_id() != modes::kTribe || world::load_queued() || !calc)
+        return false;
+    refresh_villages();
+    void* mgr = rel_mgr();
+    if (!mgr || !g_village[0])
+        return false;
+    const float allied = F<float>(mgr, 0x1C);
+    std::vector<uint32_t> fac;
+    ids.clear();
+    won.clear();
+    ids.push_back(0);
+    fac.push_back(faction_of(g_village[0]));
+    for (size_t s = 1; s < g_village.size(); ++s)
+        if (g_village[s] && game::listed(g_village[s], kTribeNoun)) {
+            const uint8_t p = party::player_of_seat((int)s);
+            if (p < 0xFE) {
+                ids.push_back(p);
+                fac.push_back(faction_of(g_village[s]));
+            }
+        }
+    won.assign(ids.size(), 0);
+    total = free_left = 0;
+    for (void* t : all_tribes()) {
+        if (std::find(g_village.begin(), g_village.end(), t) != g_village.end())
+            continue;
+        const uint32_t npc = faction_of(t);
+        if (!npc)
+            continue;
+        total++;
+        bool taken = F<uint8_t>(t, 0x556) != 0;
+        for (size_t i = 0; i < fac.size(); ++i)
+            if (allied > 0 && thiscall<float>(calc, mgr, npc, fac[i], 0) >= allied) {
+                won[i]++;
+                taken = true;
+            }
+        free_left += !taken;
+    }
+    float need = 0;
+    if (const float* done = host_goal(&need)) // the host's own goal: its alliances and conquests
+        won[0] = std::max(won[0], (int)*done);
+    return ids.size() >= 2;
+}
+
+// the race is over: the host's goal bar full and the stage's goal message (as `coop.tribe advance`): the HUD's advance
+// button shows, the host's click starts the vote (outside the frame: the message reaches the UI)
+static void rivals_end_task(void*)
+{
+    static uintptr_t get = H->sym("App::IMessageManager::Get");
+    float need = 0;
+    float* done = host_goal(&need);
+    void* mm = get ? skg::cdecl_call<void*>(get) : nullptr;
+    if (game::mode_id() != modes::kTribe || !done || !mm)
+        return;
+    if (need < 1)
+        need = 1, done[1] = need;
+    if (*done < need)
+        *done = need;
+    skg::vcall<void>(mm, 0x18 / 4, 0x5CC2589u, (void*)nullptr, (void*)nullptr, 0); // MessagePost
+    report("the Tribe race is over: the advance button moves everybody on to Civilization", false);
+}
+static bool rivals_end()
+{
+    if (!is_host() || game::mode_id() != modes::kTribe)
+        return false;
+    H->run_outside_frame(rivals_end_task, nullptr);
+    return true;
+}
+
 void villages_init()
 {
     a_FormCountRet = H->sym("SporeCoop::FormTribe_TribeCountReturn");
@@ -719,6 +810,8 @@ void villages_init()
         H->hook_create(M, (void*)owned, (void*)h_Owned, (void**)&o_Owned);
     if (uintptr_t cursor = H->sym("Simulator::cGameTerrainCursor::GetTerrainCursor"))
         H->hook_create(M, (void*)cursor, (void*)h_Cursor, (void**)&o_Cursor);
+    rivals::set_counter(rivals::kTribe, rivals_count); // BUG-9306
+    rivals::set_ender(rivals::kTribe, rivals_end);
 }
 
 void villages_forget()

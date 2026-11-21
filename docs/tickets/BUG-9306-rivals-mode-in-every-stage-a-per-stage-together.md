@@ -10,10 +10,10 @@ role:
 versions: 0.7.15.96
 fixed_in:
 branch: feat/rivals-stages
-commits:
-tests: tests/validate_tests.cpp test_rivals; by hand on lane A with agentRV/race_cell*.py, race_cr1.py (switch off), race_cr2.py, space3.py (the batch folder, not in the repo)
+commits: 17a42c41
+tests: tests/validate_tests.cpp test_rivals; by hand on lane A with agentRV/race_cell*.py, race_cr1.py (switch off), race_cr2.py, space3.py, tribe.py, tribe_end.py, civ.py, civ_end.py (the batch folder, not in the repo)
 signature:
-docs: docs/11-rivals.md#rivals-stages-race, docs/re/cell.md#cell-rivals-race, docs/re/creature.md#creature-rivals-race
+docs: docs/11-rivals.md#rivals-stages-race, docs/11-rivals.md#rivals-tribe-civ-race, docs/re/cell.md#cell-rivals-race, docs/re/creature.md#creature-rivals-race, docs/re/tribe.md#tribe-rivals-race, docs/re/civ.md#civ-rivals-race
 related: BUG-0794, BUG-9265, BUG-9268, BUG-9274, BUG-9308
 ---
 
@@ -34,6 +34,12 @@ Not a bug: a feature.
   first player's own bar is full and the catch-up timer ran out (or everybody is done); the host's own bar is filled
   for its game's native end; the existing vote moves everybody on. Notices, the HUD status block and the lobby line show
   the race; `coop.rivals`.
+* Step 3: Tribe (tribe_villages.cpp): the count of NPC tribes allied with each player's village (the host's at least
+  its game's goal count), the team alliance and the villages' re-alliance off in Rivals, the host's City Hall request
+  refused while the race runs, the advance button shown when it is over. Civilization (civ_nations.cpp): each nation's
+  cities but its capital, the team level / HUD / victory and the nations' re-alliance off in Rivals, the end window
+  (RaiseLevel 4, ShowPlanetWon + PlanetWonPause) when it is over. The race resets when the stage switches to Together
+  (an editor inside the stage keeps it).
 * Switch: `coop.fix core.rivals_stages off` (every stage reads Together, 0.7.15.96).
 
 ## Verification
@@ -47,7 +53,16 @@ By hand on Windows lane A (no Linux lab on this PC), two instances:
   the vote, the guest's I'm ready opened the host's stage-end editor (race_cr2_on.log). PASS.
 * Space (Dopov): the settings page switched both games to the rivals mode, the Space page's "Switch to allies" set the
   setting back to Together on both games, `coop.rivals set space ...` both ways (space_on2.log, space3_on.log). PASS.
+* Tribe (Tretak, the guest's own village, 4 NPC tribes): Rivals: an NPC allied with the guest's village stays 0.0 with
+  the host's (Together twin: 8.0, the team alliance; tribe_together.log); the guest's 3 of 4 won, after 45 s the
+  host's advance button showed (host goal 0), its click led to the vote and the City Hall editor (tribe_on.log,
+  tribe_end.log). PASS.
+* Civilization (Demos, 8 NPC cities spawned): the guest's nation took 5 of 8 and won, after 45 s the host's nation went
+  to level 4 and the end window showed, its button led to the vote and the spaceship editor (civ_on.log, civ_on2.log,
+  civ_end.log); Together twin with the guest at 6 of 10: no race, no end (civ_together.log). PASS.
 
 ## History
 - 2026-11-21: opened.
-- 2026-11-21: steps 1 and 2 (table, Cell / Creature race, Space wired) on feat/rivals-stages, tested on lane A.
+- 2026-11-21: steps 1 and 2 (table, Cell / Creature race, Space wired) on feat/rivals-stages (17a42c41), tested on lane A.
+- 2026-11-21: step 3 (Tribe / Civilization race) on feat/rivals-stages, tested on lane A. Not built: player relations,
+  PvP, influence, the draft, the Chronicle (docs/11-rivals.md#rivals-tribe-civ-race).

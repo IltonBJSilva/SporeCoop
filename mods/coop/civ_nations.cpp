@@ -11,8 +11,11 @@
 #include "identity.h"
 #include "party.h"
 #include "tribe_seats.h"
+#include "rivals.h"
 
 namespace civ::nations {
+
+static bool rivals_now(); // BUG-9306 (below)
 
 static bool g_on = true;
 COOP_FIX("civ.own_nations", "BUG-9274", g_on,
@@ -625,11 +628,11 @@ void host_tick(double now)
     } // host()
     if (world::load_queued() || world::cinematic_playing() || world::time_paused())
         return;
-    if (g_any && now >= g_ally_next) {
+    if (g_any && now >= g_ally_next && !rivals_now()) { // BUG-9306: Rivals: the players' nations are not kept allied
         g_ally_next = now + 5;
         H->run_outside_frame(ally_task, (void*)(uintptr_t)g_epoch);
     }
-    if (g_any && g_team && now >= g_camp_next) {
+    if (g_any && g_team && now >= g_camp_next && !rivals_now()) { // BUG-9306: Rivals: no team level, no team victory
         g_camp_next = now + 0.5;
         H->run_outside_frame(campaign_task, (void*)(uintptr_t)g_epoch);
     }
@@ -833,7 +836,7 @@ static Progress_t o_Progress;
 static float SK_THISCALL h_Progress(void* strategy)
 {
     const float own = o_Progress(strategy);
-    if ((uintptr_t)__builtin_return_address(0) != a_HudRet || !g_on || !g_team || !in_civ() || !a_CityTotal)
+    if ((uintptr_t)__builtin_return_address(0) != a_HudRet || !g_on || !g_team || !in_civ() || !a_CityTotal || rivals_now())
         return own;
     if (!guest() ? !g_any : g_team_pols.size() < 2)
         return own;
@@ -847,6 +850,84 @@ static float SK_THISCALL h_Progress(void* strategy)
     g_hud_own = own;
     g_hud_team = civ_seats::team_progress(own, others, skg::cdecl_call<int>(a_CityTotal));
     return g_hud_team;
+}
+
+// ---- BUG-9306: the Rivals Civilization stage (rivals.h, docs/11-rivals.md 11.3.4): every player's nation races for the
+// NPC cities. Host only: a player's count is its nation's cities but its capital; total: every city of the planet but the
+// players' capitals; free: the cities of no player's nation. The players' nations are not kept allied and the team's
+// level and HUD progress are off (each nation its own).
+static bool rivals_now() { return rivals::stage_rivals(rivals::kCiv); }
+
+static bool rivals_count(std::vector<uint8_t>& ids, std::vector<int>& won, int& total, int& free_left)
+{
+    if (!g_on || !host() || !in_civ() || world::load_queued())
+        return false;
+    refresh();
+    ids.clear();
+    won.clear();
+    std::vector<uint32_t> pols;
+    for (size_t s = 0; s < founders::kMaxSeats; ++s) {
+        if (!g_nation[s])
+            continue;
+        const uint8_t p = s == 0 ? 0 : g_seat_player[s];
+        if (p >= civ_seats::kAwaySeat)
+            continue;
+        ids.push_back(p);
+        pols.push_back(pol_of(g_nation[s]));
+    }
+    if (ids.size() < 2)
+        return false;
+    won.assign(ids.size(), 0);
+    int cities = 0;
+    free_left = 0;
+    for (void* c : all_cities()) {
+        cities++;
+        auto it = std::find(pols.begin(), pols.end(), pol_of(c));
+        if (it == pols.end())
+            free_left++;
+        else
+            won[it - pols.begin()]++;
+    }
+    for (int& w : won)
+        w = std::max(0, w - 1); // (its capital)
+    total = std::max(0, cities - (int)pols.size());
+    return true;
+}
+
+// the race is over: the host's nation at the planet's last level and the game's end window (GameCiv_ShowPlanetWon +
+// PlanetWonPause, as the team victory): its button, History, the end cinematic, the spaceship editor and the vote
+static bool g_rv_done;
+static uint32_t g_rv_world;
+static void rivals_end_task(void*)
+{
+    if (g_rv_done || !host() || !in_civ() || world::cinematic_playing() || world::time_paused() || !a_GameCiv || !a_ShowWon ||
+        !a_WonPause)
+        return;
+    void* home = player_civ();
+    if (!home)
+        return;
+    if (a_RaiseLevel && F<int>(home, kLevel) < 4) {
+        thiscall<void>(a_RaiseLevel, home, 4);
+        g_levels++;
+        return; // (RaiseLevel's caption first: the next time)
+    }
+    if (void* gc = skg::cdecl_call<void*>(a_GameCiv)) {
+        thiscall<void>(a_ShowWon, gc);
+        thiscall<void>(a_WonPause, gc);
+        g_rv_done = true;
+        g_rv_world = modes::current_world();
+        g_won++;
+        report("the Civilization race is over: the planet's end window moves everybody on to Space", false);
+    }
+}
+static bool rivals_end()
+{
+    if (g_rv_done && g_rv_world == modes::current_world())
+        return true;
+    g_rv_done = false;
+    if (host() && in_civ())
+        H->run_outside_frame(rivals_end_task, nullptr);
+    return false;
 }
 
 void init()
@@ -873,6 +954,8 @@ void init()
     H->hook_create(M, (void*)a_SpendMoney, (void*)h_SpendMoney, (void**)&o_SpendMoney);
     if (uintptr_t p = H->sym("SporeCoop::CivMode_Progress"); p && a_HudRet)
         H->hook_create(M, (void*)p, (void*)h_Progress, (void**)&o_Progress);
+    rivals::set_counter(rivals::kCiv, rivals_count); // BUG-9306
+    rivals::set_ender(rivals::kCiv, rivals_end);
 }
 
 std::string status()

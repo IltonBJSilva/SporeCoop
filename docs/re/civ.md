@@ -2383,3 +2383,19 @@ first city, once per world. ✔ at runtime (lane B, 2026-11-21): Epina, the gues
 (441 m with the switch off); Kealeneon (where the LookAt attempt broke the camera), 120 m from its own city and 314 m
 from the host's (413 m / 120 m off), the camera's height (173 / 179 m) and its angle to the ground (forward . up -0.84
 both) unchanged, and the four arrow keys still move it (11-30 m per three presses).
+
+## A Rivals Civilization race: the players' nations' cities, the forced end window (2026-11-21, feat/rivals-stages)
+<a id="civ-rivals-race"></a>
+
+BUG-9306, [docs/11-rivals.md#rivals-tribe-civ-race](../11-rivals.md#rivals-tribe-civ-race). Lane A (Windows, Steam
+build, two instances), Demos (the host's and the guest's capital, 8 free sites).
+
+* ✔ (runtime) `coop.civ nations spawn` x 8 founded 8 NPC cities (10 of 10 sites); `coop.civ nations capture <ci> 1`
+  gave them one by one to the guest's nation (seat 1): the count rose 20 % a city (need 5 of 8) and the fifth won the
+  race. After the timer RaiseLevel(host nation, 4) (2 -> 4) and then GameCiv_ShowPlanetWon + PlanetWonPause showed the
+  end window's button 0x6453746 at (947, 737)-(1014, 765) on 1024x768 although the host's nation owned only its
+  capital; its click, History's check and the captions led to the vote "Player wants to edit a design (Civilization)",
+  the guest's I'm ready opened the host's spaceship editor.
+* ✔ (runtime) With rivals.civ = together and the guest at 6 cities of 10 nothing ends the stage (the team victory needs
+  every city), and no race is kept.
+* ~ The host's own native end (its nation taking the planet itself) is not held while the race runs (no hook on it).

@@ -1,7 +1,7 @@
 # 11. Rivals: own bases in one world (design)
 
 Status: **design, partly built** (decided with the project owner, 2026-10-25; built since 2026-11-21: the stage
-table, the race of a Rivals stage with its catch-up timer, Space's rivals mode on the table:
+table, the race of a Rivals stage with its catch-up timer (Cell, Creature, Tribe, Civilization), Space's rivals mode on the table:
 [rivals-stages-race](#rivals-stages-race)). Chapter 9 is
 the other session mode, "Together" (one team, one base). This chapter is the second mode,
 "Rivals": every player has a base, a species, a tribe, a nation and an empire of its own, all
@@ -402,10 +402,33 @@ rules and the wire `rivals_logic.h` (tests/validate_tests.cpp `test_rivals`); `c
     rivals.cpp meets it for the host's game: Cell: its food set to 1000 (cellsync::set_food_total); Creature: its bar
     raised by AddEvolutionPoints in steps of 150 (each brain upgrade plays its caption) with the DNA put back
     (SetEvolutionPoints): the host moves on with the DNA it had. Then the host's own end button shows.
-  * Tribe and Civilization: not yet (the next step of BUG-9306).
+  * Tribe and Civilization: see [rivals-tribe-civ-race](#rivals-tribe-civ-race).
   * Space: `rivals.space` is the Space rivals mode of space_rivalry.cpp: the host's game switches the mode when the
     setting changes (in Space), and the setting follows the mode when the Space page's button (or a kept session,
     BUG-1152) changes it. "Rivals mode allowed" (space.rivals) off: the setting cannot switch it.
 * **Not built** (11.3-11.7): player relations outside Space (alliance, war, PvP bites, raids, captures between
   players), NPC relations per player and influence, the draft, the Chronicle, home protection, base distance, the Race
   page (the status block and the lobby line show the race), emigration in Space, the finale bonus.
+
+## Tribe and Civilization in Rivals: the race for the NPCs (2026-11-21, feat/rivals-stages)
+<a id="rivals-tribe-civ-race"></a>
+
+BUG-9306 step 3, on top of [rivals-stages-race](#rivals-stages-race) and the players' own villages and nations
+(docs/re/tribe.md#tribe-own-villages, docs/re/civ.md#civ-own-nations). Only players with a village / nation of their own
+race (a partner who plays the host's species shares the host's: no race with fewer than two). Runtime notes:
+docs/re/tribe.md#tribe-rivals-race, docs/re/civ.md#civ-rivals-race.
+
+* **Tribe** (11.3.3): a player's count is the NPC tribes allied with its own village (the host's: at least its game's
+  goal count, alliances and conquests); more than half of the NPC tribes wins; with no free NPC tribe left the most
+  wins. In a Rivals Tribe stage the team alliance (an NPC allied with one player's village is everybody's,
+  `tribe.team_allies`) and the periodic re-alliance of the players' villages are off: each player's alliances are its
+  own. The host's stage-end request (the City Hall editor) is refused while the race runs; when it is over the host's
+  goal is filled and the goal message posted: the HUD's advance button shows, its click starts the vote.
+* **Civilization** (11.3.4): a player's count is its nation's cities but its capital; more than half of the NPC cities
+  (every city but the players' capitals) wins. In a Rivals Civ stage the team level, the team HUD progress, the team
+  victory and the periodic re-alliance of the players' nations are off. When the race is over the host's nation is
+  raised to the last level and the game's end window is shown (GameCiv_ShowPlanetWon + PlanetWonPause, as the team
+  victory): its button, History, the end cinematic, the spaceship editor and the vote.
+* **Not built**: relations between the players (they stay as founded: allied; attacks and captures between players
+  stay refused), raids and captures as PvP, home protection, conquests of a guest's village credited to it (who
+  conquered an NPC tribe is not known: RE), influence, the draft.
