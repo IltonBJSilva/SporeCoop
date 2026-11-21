@@ -449,3 +449,12 @@ anchor so other docs can link to it:
   a guest with a creature of its own joins.
 * Known: the capital needs a free native site (SpawnNextCity); Lineages had the same limit.
 * Ticket: BUG-9276
+
+## Creature: a guest's brain cinematic under the host's pause stays black (2026-11-20, fix/campaign-qa)
+<a id="issue-guest-brain-cine-paused"></a>
+
+* What happens: the host pauses (Options menu) while the guest's brain grows; the guest's brain-upgrade cinematic
+  (F6A4B1E4) starts while its game waits for the host and stays black with no caption; the guest's own progress does not
+  reach the host meanwhile (the host waits for a partner whose bar is already full). Esc on the guest ends it.
+* Reproduce: Creature, host Esc and keep the menu open, guest `coop.dna gain 3000`, host closes the menu.
+* Ticket: BUG-9289
