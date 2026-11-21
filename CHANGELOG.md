@@ -7,7 +7,7 @@
   and NPC ships hit harder in Space; no extra creatures are made (BUG-0870).
 - Cell: the cells the players made (their My Creations) swim in the tide pool again as native species of their diet,
   but only as cells of the player's size or smaller: no giant player cells, no extra cells (Co-op settings, Cell,
-  "Custom cells in the pool", on; BUG-9302).
+  "Custom cells in the pool", off by default: the host can turn it on; BUG-9302).
 
 ## [0.7.15.5] - 2026-11-19
 
