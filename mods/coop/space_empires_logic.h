@@ -159,6 +159,100 @@ struct Wallet {
     }
 };
 
+// ---- BUG-9310: a partner's own homeworld (the owner's decision of 2026-11-21) ----
+// A partner who gets an empire of its own in the host's Space world (also one new to the save) gets a homeworld of
+// its own: a colony of its empire on a planet of a free star system near the host's home star, picked by the host and
+// kept by seat next to the planet's save: `<planet>.spo.duoemphome`, EMH1: u32 'EMH1', u8 n, n x {u8 seat, u32
+// PlanetID}. The guest's game makes the colony (the record-level colony of the kept colonies, space_allies.cpp), so
+// the colony is one of the guest's own colonies from then on (the host keeps it across a rejoin and on its disk, its
+// mirror empire shows it to the host).
+constexpr uint32_t kHomeMagic = 0x31484D45u; // EMH1
+constexpr size_t kHomeFileMax = 5 + kMaxSeats * 5;
+using Homes = std::array<uint32_t, kMaxSeats>; // by seat: the PlanetID of its homeworld, 0 = none
+
+inline std::vector<uint8_t> encode_homes(const Homes& h)
+{
+    net::Writer w;
+    w.u32(kHomeMagic);
+    uint8_t n = 0;
+    for (size_t s = 1; s < kMaxSeats; ++s)
+        n += h[s] != 0;
+    w.u8(n);
+    for (size_t s = 1; s < kMaxSeats; ++s)
+        if (h[s]) {
+            w.u8((uint8_t)s);
+            w.u32(h[s]);
+        }
+    return w.data;
+}
+// false: not an EMH1 file, cut or longer than it says, a seat out of range or twice, seat 0, a planet id 0, or one
+// planet for two seats
+inline bool decode_homes(const std::vector<uint8_t>& bytes, Homes& out)
+{
+    if (bytes.size() > kHomeFileMax)
+        return false;
+    net::Reader r(bytes.data(), bytes.size());
+    if (r.u32() != kHomeMagic)
+        return false;
+    const unsigned n = r.u8();
+    if (!r.ok() || n >= kMaxSeats || bytes.size() != 5 + n * 5)
+        return false;
+    Homes v{};
+    for (unsigned i = 0; i < n; ++i) {
+        const unsigned s = r.u8();
+        const uint32_t p = r.u32();
+        if (!r.ok() || s < 1 || s >= kMaxSeats || v[s] || !p)
+            return false;
+        for (uint32_t q : v)
+            if (q == p)
+                return false;
+        v[s] = p;
+    }
+    if (!r.ok() || r.left())
+        return false;
+    out = v;
+    return true;
+}
+
+// one star system the host's game can give as a homeworld
+struct HomeStar {
+    uint32_t star = 0;    // StarID
+    float dist = 0;       // galaxy units from the host's home star (neighbour stars are ~0.5-1 apart)
+    bool free = false;    // nobody's (no empire, not a home, no NPC or Grox star), a real star (not a core, black hole, disk)
+    bool taken = false;   // another seat's homeworld is there
+};
+// The rule: the stars sorted by their distance from the host's home star (the home star itself left out); the first
+// free star from the `rank`-th nearest on ("at least `rank` star systems away": not the host's system, not next door,
+// within a short flight). None from there on: the free star nearest to that rank below it. Returns the index into
+// `stars` (sorted by the caller or not), -1 = none. rank < 1 counts as 1.
+inline int pick_home_star(const std::vector<HomeStar>& stars, int rank)
+{
+    std::vector<size_t> order(stars.size());
+    for (size_t i = 0; i < order.size(); ++i)
+        order[i] = i;
+    for (size_t i = 1; i < order.size(); ++i) // insertion sort: stable, no <algorithm> needed by the tests
+        for (size_t j = i; j > 0 && stars[order[j]].dist < stars[order[j - 1]].dist; --j) {
+            size_t t = order[j];
+            order[j] = order[j - 1];
+            order[j - 1] = t;
+        }
+    const size_t from = rank < 1 ? 0 : (size_t)rank - 1;
+    auto ok = [&](size_t k) { return stars[order[k]].free && !stars[order[k]].taken && stars[order[k]].dist > 0; };
+    for (size_t k = from; k < order.size(); ++k)
+        if (ok(k))
+            return (int)order[k];
+    for (size_t k = from < order.size() ? from : order.size(); k-- > 0;)
+        if (ok(k))
+            return (int)order[k];
+    return -1;
+}
+// the setting space.guest_home (settings_core.h): 0 off, else the rank of the choice
+inline int home_rank(int choice)
+{
+    static const int r[] = {0, 3, 5, 8, 12};
+    return choice >= 0 && choice < 5 ? r[choice] : 5;
+}
+
 inline std::string describe(const Roster& r)
 {
     std::string out;

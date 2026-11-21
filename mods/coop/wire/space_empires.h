@@ -212,4 +212,24 @@ struct Joiner {
     }
 };
 
+// K_HOME (host -> guest, BUG-9310): {to, serial (the K_EMPIRE it follows), u32 planet}: the PlanetID of your own
+// empire's homeworld (a planet of a free star system near the host's home star the host picked for your seat); the
+// guest makes it a colony of its own empire (record level) with its species as the system's citizens. Planet 0 is no
+// message.
+struct Home : Head {
+    uint32_t planet = 0;
+    void write(net::Writer& w) const
+    {
+        Head::write(w);
+        w.u32(planet);
+    }
+    bool read(net::Reader& r)
+    {
+        if (!Head::read(r))
+            return false;
+        planet = r.u32();
+        return r.ok() && planet != 0;
+    }
+};
+
 } // namespace wire::space_empires

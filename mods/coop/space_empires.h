@@ -16,6 +16,12 @@ bool own_money_player(uint8_t player);
 // guest, BUG-9297: its own launch from Civ (civ_launch.cpp) started its game in Space: its player empire gets its own
 // captain (`species`, its nation's), name and colour. Call until it answers true (applied in this Space world).
 bool local_start(uint32_t species);
+// BUG-9310: partners get their own homeworld in Space now (switch space.guest_home and the session setting of the same
+// name): start_any asks a guest seated in the host's Space world with no species of its own for one
+bool home_asks();
+// host, BUG-9310: the species (creature key instance, the host's key) of player `player`'s own empire, 0 = it has none
+// or the homeworlds are off (space_allies.cpp gives the partner's mirror empire that species: its colonies' citizens)
+uint32_t partner_species(uint8_t player);
 
 } // namespace spaceempires
 

@@ -31,7 +31,9 @@
 #include "space_ext.h"
 #include "store.h"
 #include "space_logic.h"
+#include "space_empires.h"
 #include "space_map.h"
+#include "creations.h"
 #include "sporekit_game.hpp"
 #include "wire/space_allies.h"
 #include "wire/space_map.h"
@@ -98,6 +100,7 @@ struct Mirror {
     std::map<uint32_t, PlanetSnap> planets;
     std::map<uint32_t, std::string> skipped; // PlanetID -> why not mirrored
     std::map<uint32_t, uint8_t> raids;       // the owner's raids now: PlanetID -> bombers
+    void* species = nullptr;                 // BUG-9310: the species profile given to emp last (null: none yet)
 };
 static std::map<std::string, Mirror> g_m;
 static bool g_ok, g_hold;            // g_hold: no apply (unmirrored for a save, until g_reapply_at)
@@ -130,6 +133,12 @@ static uint32_t g_end_pending_done;
 // mirror. Off: skipped (before).
 static bool g_own_star_fix = true;
 COOP_FIX("allies.own_star", "BUG-0543", g_own_star_fix, "space: a partner's colony in a star system of mine is a colony here too");
+// BUG-9310: the mirror of a partner with an empire of its own has the partner's species (see apply)
+static bool g_partner_species_fix = true;
+COOP_FIX("allies.partner_species", "BUG-9310", g_partner_species_fix,
+         "space: a partner's mirror empire with an empire of its own has the partner's species (its colonies' citizens), not the host's");
+static uint32_t g_partner_species_sets;
+static uintptr_t a_SpeciesMgr, a_SpeciesProfile;
 static void end_all();
 static void forget_all();
 static std::map<uint32_t, double> g_raid_quiet; // PlanetID -> no new raid of mine there before
@@ -494,6 +503,7 @@ static void restore_star(Mirror& m, uint32_t id)
 // drop the snapshots (after a reload of the galaxy, or once undone): our references go
 static void forget(Mirror& m)
 {
+    m.species = nullptr;
     for (auto& [id, p] : m.planets)
         if (p.rec)
             vcall<void>(p.rec, 1);
@@ -759,10 +769,25 @@ static void apply(Mirror& m)
         add_planet_own(m, rec);
     // the empire's species (citizens, buildings, the ships; also the species key of each of its
     // stars): the player's own (the same save in the usual session; the partner's species is not in
-    // my files otherwise)
-    if (first || m.stars.size() != stars_before)
-        if (void* sp = thiscall<void*>(a_GetSpecies, player_empire()))
-            thiscall<void>(a_SetSpecies, m.emp, sp);
+    // my files otherwise). BUG-9310: a partner with an empire of its own (its own homeworld) has its own species, a
+    // creature the host's game has as the partner's shared creation: its colonies' citizens are its species then
+    // (`coop.fix allies.partner_species off`: the player's own, 0.7.15.97). restore_star puts every star's key back.
+    void* sp = nullptr;
+    if (g_partner_species_fix)
+        if (uint32_t inst = spaceempires::partner_species(m.id)) {
+            const uint32_t key[3] = {inst, 0x2B978C46u, 0x40626200u};
+            void* mgr = a_SpeciesMgr ? cdecl_call<void*>(a_SpeciesMgr) : nullptr;
+            if (mgr && a_SpeciesProfile && creations::key_known({key[0], key[1], key[2]}))
+                sp = thiscall<void*>(a_SpeciesProfile, mgr, key);
+        }
+    if (!sp)
+        sp = thiscall<void*>(a_GetSpecies, player_empire());
+    if (sp && (first || m.stars.size() != stars_before || sp != m.species)) {
+        thiscall<void>(a_SetSpecies, m.emp, sp);
+        if (sp != m.species)
+            g_partner_species_sets++;
+        m.species = sp;
+    }
     str_assign((uint8_t*)m.emp + 0x3C, utf16(empire_name(m))); // SetSpeciesProfile renames it
     if (first) {
         set_relation(m, true);
@@ -1266,7 +1291,8 @@ static std::string status()
              g_raids_started, g_raids_won, g_raids_completed, (int)g_end_pending, g_end_pending_done);
     return std::string(b) + " npc_stars_taken=" + std::to_string(g_npc_stars_taken) + " npc_stars_refused=" +
            std::to_string(g_npc_stars_refused) + " cities_read=" + std::to_string(g_cities_read) + " cities_applied=" +
-           std::to_string(g_cities_applied) + " cities_made=" + std::to_string(g_cities_made) + (g_last.empty() ? "" : " last='" + g_last + "'");
+           std::to_string(g_cities_applied) + " cities_made=" + std::to_string(g_cities_made) + " partner_species=" +
+           std::to_string(g_partner_species_sets) + (g_last.empty() ? "" : " last='" + g_last + "'");
 }
 
 static std::string hex(uint32_t v)
@@ -1935,6 +1961,8 @@ static bool init(const SkHost* h, SkMod* m)
     a_SetHomeStar = S("SporeCoop::cEmpire_SetHomeStar");
     a_AddPlanet = S("SporeCoop::cEmpire_AddPlanet");
     a_SetSpecies = S("Simulator::cEmpire::SetSpeciesProfile");
+    a_SpeciesMgr = S("Editors::cSpeciesManager::Get"); // BUG-9310
+    a_SpeciesProfile = S("Editors::cSpeciesManager::GetSpeciesProfile");
     a_GetSpecies = S("Simulator::cEmpire::GetSpeciesProfile");
     a_PlanetTech = S("SporeCoop::cPlanetRecord_SetTechLevel");
     a_FillPlanet = S("SporeCoop::cPlanetRecord_FillPlanetDataForTechLevel");

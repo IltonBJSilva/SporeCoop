@@ -455,6 +455,15 @@ static void test_start_any()
     CHECK(!should_ask(s));
     s.new_party = true, s.stage = 0; // Cell: start_choice asks
     CHECK(!should_ask(s));
+    // BUG-9310: an older party in the host's Space world: a guest whose seat has no species is asked (homeworlds on)
+    s.new_party = false, s.stage = 4, s.space_no_species = true;
+    CHECK(should_ask(s));
+    s.stage = 3; // only in Space
+    CHECK(!should_ask(s));
+    s.stage = 4, s.recorded = true; // its choice is recorded: start_any sends kUse with its creature instead
+    CHECK(!should_ask(s));
+    s.recorded = false, s.space_no_species = false; // a species of its own already (or homeworlds off): 0.7.15.97
+    CHECK(!should_ask(s));
 }
 
 static void test_start_choice()
@@ -829,7 +838,7 @@ static void test_settings()
     CHECK(parse_value(kCreatureMode, "on", v) && v == 1 && !parse_value(kCreatureMode, "hosts", v));
     CHECK(value_name(kCellRegen, 0).empty() && value_text(kCellRegen, 0) == "off");
     for (int i = kNameTags; i < kCount; i++) // every row of step 3 but friendly fire and the creature mode is on by default
-        CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney || i == kDifficulty || i == kCustomCells ? 0 : i == kPlayerLimit ? 4 : i == kAutosave ? 2 : 1));
+        CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney || i == kDifficulty || i == kCustomCells ? 0 : i == kPlayerLimit ? 4 : i == kAutosave || i == kSpaceGuestHome ? 2 : 1));
     // BUG-0870: difficulty scaling by party size: off by default, Live, seven named choices up to 400 %
     CHECK(kDefs[kDifficulty].scope == Scope::Live && kDefs[kDifficulty].max == difficulty::kChoices - 1);
     CHECK(value_text(kDifficulty, 0) == "off" && value_text(kDifficulty, 2) == "100 %" && value_text(kDifficulty, 6) == "400 %");
@@ -1408,8 +1417,9 @@ static void test_manifest()
             bad++;
         }
         // kinds added after 0.7.14 (unknown there: a 0.7.14 peer passes them on and ignores them): K_ECO 90 (BUG-1148),
-        // K_COLONY 14 / K_KEPT_COLONY 15 (BUG-1151), the empires kinds 100..104 (BUG-9279), K_LAUNCH 105 (BUG-9299)
-        bool added = (t == 90 || t == 14 || t == 15 || (t >= 100 && t <= 105)) && golden0714::space_dir(u) == SpaceDir::Unknown;
+        // K_COLONY 14 / K_KEPT_COLONY 15 (BUG-1151), the empires kinds 100..104 (BUG-9279), K_LAUNCH 105 (BUG-9299),
+        // K_HOME 106 (BUG-9310)
+        bool added = (t == 90 || t == 14 || t == 15 || (t >= 100 && t <= 106)) && golden0714::space_dir(u) == SpaceDir::Unknown;
         if (space_dir(u) != golden0714::space_dir(u) && !added) {
             printf("  space kind %d: direction %d, 0.7.14 %d\n", t, (int)space_dir(u), (int)golden0714::space_dir(u));
             bad++;

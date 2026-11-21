@@ -20,9 +20,18 @@
 // * Its name: on its own game the guest's player empire is called "<player>'s empire" (the name the host's game gives
 //   its allied mirror, space_allies.cpp), set back before every save of that game.
 // * Rivals mode (space_rivalry.cpp) has budgets of its own: this feature waits while it is on.
+// * Its homeworld (BUG-9310, the owner's decision of 2026-11-21): the host picks a planet of a free star system near
+//   its home star for every seat with an empire (space_empires_logic.h pick_home_star, the session setting
+//   space.guest_home: how many systems away), keeps it next to the planet's save (<planet>.spo.duoemphome) and tells
+//   the guest after every K_EMPIRE (K_HOME 106). The guest's game makes it a colony of its own empire (the record-level
+//   colony of the kept colonies) with its own species as the system's citizens (cStarRecord +0x74, the key put back
+//   before every save of that game). From then on it is one of the guest's colonies: the host's mirror empire shows
+//   it (with the guest's species, space_allies.cpp), the host keeps it across a rejoin and on its disk (space_map.cpp).
+//   A guest with no species of its own is asked for one first (start_any.cpp, the "Your own start" page).
 // `coop.fix space.own_empires off`: nothing is founded or asked, the shared money of 0.7.15.
 #include <windows.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -30,6 +39,8 @@
 #include <vector>
 
 #include "fixes.h"
+#include "settings.h"
+#include "spacecoop.h"
 #include "founders.h"
 #include "identity.h"
 #include "modes.h"
@@ -60,11 +71,13 @@ enum Kind : uint8_t {
     K_DIPLO = 103,     // guest -> host {to 0, serial answered, part}: my own empire's diplomacy table (one part)
     K_DIPLO_SET = 104, // host -> guest {to, serial of its K_EMPIRE, part}: your table as I kept it (count 0: none)
     K_LAUNCH = 105,    // guest -> host {to 0, serial answered, state, ship, captain}: my own spaceship (space_launch.cpp)
+    K_HOME = 106,      // host -> guest {to, serial of its K_EMPIRE, planet}: your own empire's homeworld (BUG-9310)
 };
 
 static const SkHost* H;
 static SkMod* M;
 static uintptr_t a_PlayerEmpire, a_StrAssign, a_Color, a_SetShip, a_SetCaptain, a_SpaceGame, a_SetArchetype, a_NounMgr;
+static uintptr_t a_StarMgr, a_RequirePlanets, a_GetPlanets, a_StarSpecies; // BUG-9310
 
 static bool g_fix = true;
 COOP_FIX("space.own_empires", "BUG-9279", g_fix,
@@ -113,6 +126,7 @@ constexpr uintptr_t kMoney = 0xD0; // cEmpire money (int; docs/re/space.md 13.1)
 constexpr double kAskEvery = 3.0, kReportEvery = 2.0, kFoundEvery = 1.0, kDiploEvery = 5.0, kDiploResend = 60.0;
 const wchar_t* const kSuffix = L".duoempires";
 const wchar_t* const kDiploSuffix = L".duoempdiplo";
+const wchar_t* const kHomeSuffix = L".duoemphome"; // BUG-9310
 constexpr uint32_t kDiploMagic = 0x31444D45u; // EMD1
 constexpr size_t kDiploMax = wire::space_empires::kPartMax * wire::space_empires::kPartsMax;
 constexpr size_t kDiploFileMax = 5 + kMaxSeats * (5 + kDiploMax);
@@ -138,6 +152,16 @@ static bool set_money(int32_t v)
     return true;
 }
 static bool active() { return g_fix && spaceext::connected() && !spaceext::rivals(); }
+
+// BUG-9310 (the owner's decision of 2026-11-21): every partner with an empire of its own gets its own homeworld, and a
+// partner new to the host's Space world with no species of its own is asked for one (start_any.cpp). Off: such a
+// partner flies the host's empire (0.7.15.97); a partner with a species keeps its empire and money, without a home.
+static bool g_home_fix = true;
+COOP_FIX("space.guest_home", "BUG-9310", g_home_fix,
+         "space: a partner new to a Space world chooses its species and its own empire gets its own homeworld near the host's");
+static int home_rank_now() { return home_rank(settings::get(settings::kSpaceGuestHome)); }
+static bool homes_on() { return g_fix && g_home_fix && home_rank_now() > 0 && !spaceext::rivals(); }
+bool home_asks() { return homes_on() && spaceext::connected(); }
 
 static std::u16string name_of_empire(void* e)
 {
@@ -212,6 +236,11 @@ static uint32_t g_serial;
 static uint16_t g_diplo_version;
 static double g_next_found;
 static std::string g_last_err;
+static Homes g_homes{};          // BUG-9310: by seat, its homeworld's PlanetID
+static bool g_home_queued;
+static double g_next_home;
+static uint32_t g_home_picks, g_home_sent, g_home_none;
+static std::string g_home_why = "-"; // why the last pick found none
 // a player who left: its id goes to the next newcomer
 PLAYER_STATE("space_empires", [](uint8_t id) { g_told.erase(id); }, [](uint8_t id) -> size_t { return g_told.count(id); });
 static struct {
@@ -275,6 +304,7 @@ static void roster_load()
     g_diplo_dirty = false;
     g_told.clear();
     g_read = true;
+    g_homes = {};
     std::vector<uint8_t> bytes;
     if (!planet.empty() && founders::read_side(planet, kSuffix, bytes, kFileMax)) {
         if (decode(bytes, g_roster))
@@ -285,6 +315,13 @@ static void roster_load()
     bytes.clear();
     if (!planet.empty() && founders::read_side(planet, kDiploSuffix, bytes, kDiploFileMax) && !diplo_decode(bytes))
         H->log(M, SK_WARN, "empires: the planet's empire diplomacy file is not valid: ignored");
+    bytes.clear();
+    if (!planet.empty() && founders::read_side(planet, kHomeSuffix, bytes, kHomeFileMax)) {
+        if (decode_homes(bytes, g_homes))
+            H->log(M, SK_INFO, "empires: this planet's partner homeworlds read");
+        else
+            H->log(M, SK_WARN, "empires: the planet's homeworld file is not valid: ignored");
+    }
 }
 
 static bool roster_write(const char* why)
@@ -306,6 +343,11 @@ static bool roster_write(const char* why)
         else
             g_n.write_fail++;
     }
+    bool homes = false;
+    for (uint32_t h : g_homes)
+        homes = homes || h;
+    if (homes && !founders::write_side(g_planet, kHomeSuffix, encode_homes(g_homes)))
+        g_n.write_fail++;
     g_n.writes++;
     H->log(M, SK_INFO, "empires: written (%s): %s", why, describe(g_roster).c_str());
     return true;
@@ -354,6 +396,16 @@ static void send_empire(uint8_t player, int seat)
         send_parts(K_DIPLO_SET, g_diplo[seat], player, m.serial, ++g_diplo_version);
         g_n.diplo_out++;
     }
+    if (m.have && homes_on() && g_homes[seat]) { // BUG-9310: its homeworld
+        ew::Home h;
+        h.to = player;
+        h.serial = m.serial;
+        h.planet = g_homes[seat];
+        net::Writer hw;
+        h.write(hw);
+        spaceext::send(K_HOME, hw);
+        g_home_sent++;
+    }
     H->log(M, SK_INFO, "empires: player %u (%s) told: %s", player, spaceext::name_of(player).c_str(),
            m.have ? ("its own empire, seat " + std::to_string(seat) + ", money " + std::to_string(m.money) +
                      ", diplomacy " + std::to_string(g_diplo[seat].size()) + " bytes")
@@ -396,6 +448,165 @@ static void host_found()
         send_empire(p, seat); // it plays now: its money is its own from now on
 }
 
+// ---------------- BUG-9310: the homeworlds (host) ----------------
+static bool rd(const void* p, size_t n) { return p && !IsBadReadPtr(p, n); }
+template <typename T>
+static T& F(void* p, uintptr_t off) { return *(T*)((uint8_t*)p + off); }
+static std::vector<void*> ptrs(void* v, size_t max)
+{
+    std::vector<void*> out;
+    if (!rd(v, 8))
+        return out;
+    void** b = F<void**>(v, 0);
+    void** e = F<void**>(v, 4);
+    if (!b || e <= b || (size_t)(e - b) > max || !rd(b, (e - b) * 4))
+        return out;
+    out.assign(b, e);
+    return out;
+}
+static void* star_mgr() { return a_StarMgr ? cdecl_call<void*>(a_StarMgr) : nullptr; }
+// a star's planet records (generated for a star never visited: cStarManager::RequirePlanetsForStar, the same
+// planets on every game: spacecoop.cpp's seeded generation, BUG-0185)
+static std::vector<void*> star_planets(void* st)
+{
+    if (!F<uint8_t>(st, 0xAC) && a_RequirePlanets && star_mgr())
+        thiscall<void>(a_RequirePlanets, star_mgr(), st, 0);
+    void* v = a_GetPlanets ? thiscall<void*>(a_GetPlanets, st) : (uint8_t*)st + 0x84;
+    return ptrs(v, 64);
+}
+// the planet of a star that becomes a homeworld: no life above creatures on it (tech <= 1), a rocky planet (type +0x28
+// 2..5, T0..T3: not a gas giant or an asteroid belt), the best terraforming type first; 0 = none
+static uint32_t home_planet_of(void* st)
+{
+    uint32_t best = 0;
+    int best_type = -1;
+    for (void* r : star_planets(st)) {
+        if (!rd(r, 0x1A4) || F<uint32_t>(r, 0x194) > 1)
+            continue;
+        const int type = F<int>(r, 0x28);
+        if (type < 2 || type > 5 || type <= best_type)
+            continue;
+        best = F<uint32_t>(r, 0x184);
+        best_type = type;
+    }
+    return best;
+}
+static std::string str16(void* s16)
+{
+    if (!rd(s16, 8))
+        return "";
+    const char16_t* b = F<const char16_t*>(s16, 0);
+    const char16_t* e = F<const char16_t*>(s16, 4);
+    if (!b || e <= b || e - b > 200 || !rd(b, (e - b) * 2))
+        return "";
+    return utf8(std::u16string(b, e));
+}
+static std::string planet_label(uint32_t planet)
+{
+    void* st = spacecoop::star_record(planet & 0xFFFFFFu);
+    if (!rd(st, 0xB0))
+        return "?";
+    std::string name;
+    for (void* r : ptrs((uint8_t*)st + 0x84, 64))
+        if (rd(r, 0x1A4) && F<uint32_t>(r, 0x184) == planet)
+            name = str16((uint8_t*)r + 0x18);
+    return (name.empty() ? std::string("a planet") : name) + " (" + str16((uint8_t*)st + 0x60) + ")";
+}
+
+// pick a homeworld for `seat` (outside the frame: it may generate a star's planets). The rule: space_empires_logic.h
+// pick_home_star over the 64 stars nearest the host's home star (the setting's rank); a star whose planets offer no
+// homeworld is left out and the pick runs again.
+static uint32_t pick_home(int seat, std::string& why)
+{
+    void* sm = star_mgr();
+    void* me = player_empire();
+    void* home = me ? spacecoop::star_record(F<uint32_t>(me, 0xB0)) : nullptr;
+    if (!sm || !rd(home, 0xB0)) {
+        why = "no home star";
+        return 0;
+    }
+    const float* hp = &F<float>(home, 0x3C);
+    std::vector<std::pair<float, void*>> cands; // the nearest 64
+    uint8_t* b = F<uint8_t*>(sm, 0xC8);
+    uint8_t* e = F<uint8_t*>(sm, 0xCC);
+    for (uint8_t* sec = b; sec && sec + 20 <= e && rd(sec, 20); sec += 20) { // the sector table (docs/re/space.md 9.1)
+        void** arr = *(void***)sec;
+        void** end = *(void***)(sec + 4);
+        for (void** it = arr; arr && it < end && it - arr < 4096 && rd(it, 4); it++) {
+            void* st = *it;
+            if (!rd(st, 0xB0) || st == home)
+                continue;
+            const float* p = &F<float>(st, 0x3C);
+            const float d = std::sqrt((p[0] - hp[0]) * (p[0] - hp[0]) + (p[1] - hp[1]) * (p[1] - hp[1]) +
+                                      (p[2] - hp[2]) * (p[2] - hp[2]));
+            if (cands.size() < 64)
+                cands.push_back({d, st});
+            else {
+                size_t fz = 0;
+                for (size_t k = 1; k < cands.size(); k++)
+                    if (cands[k].first > cands[fz].first)
+                        fz = k;
+                if (d < cands[fz].first)
+                    cands[fz] = {d, st};
+            }
+        }
+    }
+    std::vector<HomeStar> c;
+    for (auto& [d, st] : cands) {
+        HomeStar h;
+        h.star = F<uint32_t>(st, 0x70);
+        h.dist = d;
+        const uint32_t type = F<uint32_t>(st, 0x48); // StarType: 4.. real stars and binaries (1 core, 2 black hole, 3 disk)
+        h.free = F<uint32_t>(st, 0x54) == 0xFFFFFFFFu && !(F<uint32_t>(st, 0x5C) & 0xF) && type >= 4 && type <= 12;
+        for (size_t s2 = 1; s2 < kMaxSeats; s2++)
+            h.taken = h.taken || ((int)s2 != seat && g_homes[s2] && (g_homes[s2] & 0xFFFFFFu) == (h.star & 0xFFFFFFu));
+        c.push_back(h);
+    }
+    for (int tries = 0; tries < 12; tries++) {
+        const int i = pick_home_star(c, home_rank_now());
+        if (i < 0)
+            break;
+        if (uint32_t planet = home_planet_of(cands[i].second)) {
+            H->log(M, SK_INFO,
+                   "empires: seat %d's homeworld: planet %08X of star %u, %.2f units from home (rule: the first free "
+                   "star from the %d-th nearest on)",
+                   seat, planet, c[i].star, c[i].dist, home_rank_now());
+            return planet;
+        }
+        c[i].free = false; // no planet for a homeworld there
+    }
+    why = "no free star system with a rocky planet near the home star";
+    return 0;
+}
+
+static void home_task(void*)
+{
+    g_home_queued = false;
+    if (!homes_on() || !spaceext::is_host() || !spaceext::in_space() || g_planet != world::current_game_key())
+        return;
+    const auto& seats = party::roster().seats;
+    for (size_t seat = 1; seat < kMaxSeats; seat++) {
+        if (!g_roster.e[seat].founded || g_homes[seat])
+            continue;
+        std::string why;
+        const uint32_t planet = pick_home((int)seat, why);
+        if (!planet) {
+            g_home_none++;
+            g_home_why = why;
+            return; // tried again in a while
+        }
+        g_homes[seat] = planet;
+        g_home_picks++;
+        roster_write("homeworld");
+        const std::string who =
+            seat < seats.size() && !seats[seat].name.empty() ? seats[seat].name : "seat " + std::to_string(seat);
+        spaceext::notice(who + spaceext::tr("'s own homeworld: ", ": своя родная планета: ") + planet_label(planet));
+        const uint8_t p = party::player_of_seat((int)seat);
+        if (p != party::kNobody && g_told.count(p) && g_told[p] == (int)seat)
+            send_empire(p, (int)seat); // its K_HOME comes with it
+    }
+}
+
 static void host_tick(double now)
 {
     roster_load();
@@ -403,6 +614,24 @@ static void host_tick(double now)
         return;
     g_next_found = now + kFoundEvery;
     host_found();
+    if (homes_on() && !g_home_queued && now >= g_next_home) {
+        bool want = false;
+        for (size_t seat = 1; seat < kMaxSeats; seat++)
+            want = want || (g_roster.e[seat].founded && !g_homes[seat]);
+        if (want) {
+            g_next_home = now + 5.0;
+            g_home_queued = true;
+            H->run_outside_frame(home_task, nullptr);
+        }
+    }
+}
+
+uint32_t partner_species(uint8_t player)
+{
+    if (!homes_on() || !spaceext::is_host())
+        return 0;
+    auto it = g_told.find(player);
+    return it != g_told.end() && it->second >= 1 && g_roster.founded(it->second) ? g_roster.e[it->second].species : 0;
 }
 
 // the save hook (any stage, before the game writes): the players' money goes into the empire file with the save
@@ -741,11 +970,84 @@ bool local_start(uint32_t species)
     return false;
 }
 
+// ---------------- BUG-9310: my homeworld (guest) ----------------
+// K_HOME names it; in every Space world of the host's that answered my K_ASK it is made a colony of my empire (the
+// record-level colony of the kept colonies: spaceext::colonize_own, "" also when it is mine already) and its star
+// system gets my species as its citizens: cStarRecord +0x74 {instance, type, group} (Simulator::cPlanetRecord::
+// GetCitizenSpeciesKey reads the star's key: the HUD's planet panel picture, the cities' citizens), set with the game's
+// own setter (SporeCoop::cStarRecord_SetSpeciesKey) and put back before every save of my game.
+static uint32_t g_home_planet;       // from the host (0: none)
+static uint32_t g_home_epoch;        // the Space world it was made mine in (0: not yet)
+static bool g_home_apply_queued, g_home_told;
+static double g_next_home_try;
+static std::string g_home_last = "-"; // the last try's answer
+static uint32_t g_home_made, g_home_waits, g_home_fails, g_home_keys;
+static void* g_home_star;            // the star record whose species key I set (pointer compared only)
+static uint32_t g_home_star_epoch;
+static uint32_t g_home_key_orig[3], g_home_key_mine[3];
+static uint32_t my_species()
+{
+    if (g_species && creations::key_known({g_species, 0x2B978C46u, 0x40626200u}))
+        return g_species;
+    return creations::mine(creations::kCreature).key.instance; // the creature this game plays (its own key)
+}
+static void home_undo()
+{
+    if (g_home_star && g_home_star_epoch == spaceext::world_epoch() && a_StarSpecies && rd(g_home_star, 0x80) &&
+        !memcmp((uint8_t*)g_home_star + 0x74, g_home_key_mine, 12))
+        thiscall<void>(a_StarSpecies, g_home_star, g_home_key_orig);
+    g_home_star = nullptr;
+    g_home_epoch = 0; // made again (and the key set again) in the next tick
+}
+static void home_apply_task(void*)
+{
+    g_home_apply_queued = false;
+    const uint32_t e = spaceext::world_epoch();
+    if (!g_home_planet || !g_own || g_answered != e || !spaceext::in_space() || own_world::space_other())
+        return;
+    std::string why = spaceext::colonize_own(g_home_planet);
+    g_home_last = why.empty() ? "made" : why;
+    if (why == "wait") { // my ship is at that planet now
+        g_home_waits++;
+        g_next_home_try = H->time_seconds() + 3;
+        return;
+    }
+    if (!why.empty()) {
+        g_home_fails++;
+        g_next_home_try = H->time_seconds() + 15;
+        H->log(M, SK_WARN, "empires: my homeworld %08X can not be mine: %s", g_home_planet, why.c_str());
+        return;
+    }
+    // its citizens: my species
+    void* st = spacecoop::star_record(g_home_planet & 0xFFFFFFu);
+    const uint32_t sp = my_species();
+    if (st && rd(st, 0x80) && sp && a_StarSpecies) {
+        const uint32_t key[3] = {sp, 0x2B978C46u, 0x40626200u};
+        if (memcmp((uint8_t*)st + 0x74, key, 12)) {
+            memcpy(g_home_key_orig, (uint8_t*)st + 0x74, 12);
+            memcpy(g_home_key_mine, key, 12);
+            thiscall<void>(a_StarSpecies, st, key);
+            g_home_star = st;
+            g_home_star_epoch = e;
+            g_home_keys++;
+        }
+    }
+    g_home_epoch = e;
+    g_home_made++;
+    H->log(M, SK_INFO, "empires: my homeworld %08X is my colony in this world, citizens %08X", g_home_planet, sp);
+    if (!g_home_told) {
+        g_home_told = true;
+        spaceext::notice(spaceext::tr("Your own homeworld: ", "Ваша родная планета: ") + planet_label(g_home_planet));
+    }
+}
+
 // the save hook on the guest: the game's own name goes into its save
 static void guest_save()
 {
-    if (!spaceext::is_host())
+    if (!spaceext::is_host()) {
         name_undo();
+        home_undo();
+    }
 }
 
 static void guest_tick(double now)
@@ -770,6 +1072,11 @@ static void guest_tick(double now)
     }
     if (!g_own)
         return;
+    if (g_home_planet && homes_on() && g_home_epoch != e && !g_home_apply_queued && now >= g_next_home_try) { // BUG-9310
+        g_home_apply_queued = true;
+        g_next_home_try = now + 3.0;
+        H->run_outside_frame(home_apply_task, nullptr);
+    }
     if (!g_renamed && g_name_fix && !g_name_queued && player_empire()) {
         g_name_queued = true;
         H->run_outside_frame(name_task, nullptr); // after a save, or the first time in this world
@@ -830,6 +1137,18 @@ static void guest_message(uint8_t kind, net::Reader& r)
         g_next_diplo = g_diplo_sent_at + kDiploEvery;
         g_g_diplo_sets++;
         H->log(M, SK_INFO, "empires: my own diplomacy from the host: %u empires", (unsigned)t.size());
+        return;
+    }
+    if (kind == K_HOME) { // BUG-9310: my homeworld, after the K_EMPIRE it names
+        ew::Home h;
+        if (!h.read(r) || h.to != spaceext::my_id() || h.serial != g_answer || !g_own)
+            return;
+        if (h.planet != g_home_planet) {
+            g_home_planet = h.planet;
+            g_home_epoch = 0;
+            g_next_home_try = 0;
+        }
+        H->log(M, SK_INFO, "empires: my homeworld is planet %08X", h.planet);
         return;
     }
     if (kind != K_EMPIRE)
@@ -900,6 +1219,10 @@ static void on_message(uint8_t kind, uint8_t origin, net::Reader& r)
 static void on_session_end()
 {
     name_undo();
+    home_undo(); // BUG-9310
+    g_home_planet = 0;
+    g_home_told = false;
+    g_home_last = "-";
     g_wallet = {};
     g_diplo_in = {};
     g_told.clear();
@@ -936,7 +1259,24 @@ static std::string status()
                  g_answered, spaceext::world_epoch(), g_g_asks, g_g_sets, g_g_reports, (int)g_diplo_ready, g_g_diplo_sets,
                  g_g_diplo_sent, player_empire() ? key_at(player_empire(), kShipKey).i : 0u,
                  player_empire() ? key_at(player_empire(), kCaptainKey).i : 0u, g_arch_applied, g_arch_sets, g_local_sets, g_local_why, g_panel_sets);
-    return std::string(b) + "\n" + spacelaunch::status();
+    char hb[320];
+    if (spaceext::is_host() || !spaceext::connected()) {
+        std::string homes;
+        for (size_t s = 1; s < kMaxSeats; s++)
+            if (g_homes[s]) {
+                char t[48];
+                snprintf(t, sizeof t, " seat%zu=%08X", s, g_homes[s]);
+                homes += t;
+            }
+        snprintf(hb, sizeof hb, "home: fix=%d on=%d rank=%d homes=[%s ] picks=%u none=%u (%s) sent=%u", (int)g_home_fix,
+                 (int)homes_on(), home_rank_now(), homes.c_str(), g_home_picks, g_home_none, g_home_why.c_str(), g_home_sent);
+    } else {
+        void* st = g_home_planet ? spacecoop::star_record(g_home_planet & 0xFFFFFFu) : nullptr;
+        snprintf(hb, sizeof hb, "home: fix=%d on=%d planet=%08X mine_epoch=%u made=%u waits=%u fails=%u last=%s keys=%u citizens=%08X",
+                 (int)g_home_fix, (int)homes_on(), g_home_planet, g_home_epoch, g_home_made, g_home_waits, g_home_fails,
+                 g_home_last.c_str(), g_home_keys, rd(st, 0x80) ? F<uint32_t>(st, 0x74) : 0u);
+    }
+    return std::string(b) + "\n" + hb + "\n" + spacelaunch::status();
 }
 
 static std::vector<spaceext::Row> rows()
@@ -950,6 +1290,17 @@ static std::vector<spaceext::Row> rows()
             out.push_back({spaceext::tr("Your own empire: your own money and diplomacy",
                                         "Ваша империя: свои деньги и дипломатия"),
                            "", nullptr, 0});
+        if (g_own && g_home_planet && homes_on()) { // BUG-9310
+            const uint32_t star = g_home_planet & 0xFFFFFFu;
+            out.push_back({spaceext::tr("Your homeworld: ", "Ваша родная планета: ") + planet_label(g_home_planet),
+                           spaceext::tr("Fly there", "Лететь"),
+                           [star] {
+                               std::string why = spacecoop::travel(star);
+                               if (!why.empty())
+                                   spaceext::notice(why);
+                           },
+                           0});
+        }
         return out;
     }
     const auto& seats = party::roster().seats;
@@ -961,6 +1312,9 @@ static std::vector<spaceext::Row> rows()
         out.push_back({who + spaceext::tr("'s own empire: $", ": своя империя: $") + std::to_string(g_roster.e[s].money) +
                            (on ? "" : spaceext::tr(" (away)", " (нет в игре)")),
                        "", nullptr, 0});
+        if (g_homes[s] && homes_on()) // BUG-9310
+            out.push_back({"  " + std::string(spaceext::tr("homeworld: ", "родная планета: ")) + planet_label(g_homes[s]),
+                           "", nullptr, 0});
     }
     return out;
 }
@@ -1004,6 +1358,48 @@ static std::string debug(const std::vector<std::string>& a)
     }
     if (!a.empty() && a[0] == "write")
         return roster_write("test") ? "empires: written" : "empires: not written";
+    // BUG-9310: home [clear <seat>]: the homeworlds; clear (host) forgets a seat's (picked again in a moment)
+    if (!a.empty() && a[0] == "home") {
+        if (a.size() >= 3 && a[1] == "clear" && spaceext::is_host()) {
+            const int seat = atoi(a[2].c_str());
+            if (seat < 1 || seat >= (int)kMaxSeats)
+                return "empires: no such seat";
+            g_homes[seat] = 0;
+            roster_write("home cleared");
+            return "empires: seat " + a[2] + "'s homeworld forgotten";
+        }
+        std::string o;
+        void* me = player_empire();
+        if (spaceext::is_host() || !spaceext::connected()) {
+            for (size_t s = 1; s < kMaxSeats; s++)
+                if (g_homes[s]) {
+                    void* st = spacecoop::star_record(g_homes[s] & 0xFFFFFFu);
+                    void* hs = me ? spacecoop::star_record(F<uint32_t>(me, 0xB0)) : nullptr;
+                    float d = -1;
+                    if (rd(st, 0xB0) && rd(hs, 0xB0)) {
+                        const float* p = &F<float>(st, 0x3C);
+                        const float* q = &F<float>(hs, 0x3C);
+                        d = std::sqrt((p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]) + (p[2] - q[2]) * (p[2] - q[2]));
+                    }
+                    char t[256];
+                    snprintf(t, sizeof t, "home seat=%zu planet=%08X star=%u '%s' dist=%.2f owner=%08X citizens=%08X\n", s,
+                             g_homes[s], g_homes[s] & 0xFFFFFFu, planet_label(g_homes[s]).c_str(), d,
+                             rd(st, 0xB0) ? F<uint32_t>(st, 0x54) : 0u, rd(st, 0x80) ? F<uint32_t>(st, 0x74) : 0u);
+                    o += t;
+                }
+        } else if (g_home_planet) {
+            void* st = spacecoop::star_record(g_home_planet & 0xFFFFFFu);
+            char t[256];
+            snprintf(t, sizeof t, "home planet=%08X star=%u '%s' owner=%08X mine=%d citizens=%08X\n", g_home_planet,
+                     g_home_planet & 0xFFFFFFu, planet_label(g_home_planet).c_str(), rd(st, 0xB0) ? F<uint32_t>(st, 0x54) : 0u,
+                     (int)(rd(st, 0xB0) && me && F<uint32_t>(st, 0x54) == F<uint32_t>(me, 0x84)),
+                     rd(st, 0x80) ? F<uint32_t>(st, 0x74) : 0u);
+            o += t;
+        }
+        if (me && rd(me, 0xB8))
+            o += "my_home_star=" + std::to_string(F<uint32_t>(me, 0xB0)) + "\n"; // the game's player empire's home
+        return o;
+    }
     // tests (a lab fixture without a guest on a species of its own): found <player id> <species hex>: that player's
     // seat gets an empire as if it played that species, then the player is told again
     if (a.size() >= 3 && a[0] == "found" && spaceext::is_host()) {
@@ -1054,6 +1450,10 @@ static bool init(const SkHost* h, SkMod* m)
     a_SpaceGame = H->sym("Simulator::cSimulatorSpaceGame::Get");
     a_SetArchetype = H->sym("SporeCoop::SpaceGame_SetArchetype");
     a_NounMgr = H->sym("Simulator::cGameNounManager::Get");
+    a_StarMgr = H->sym("Simulator::cStarManager::Get"); // BUG-9310
+    a_RequirePlanets = H->sym("Simulator::cStarManager::RequirePlanetsForStar");
+    a_GetPlanets = H->sym("Simulator::cStarRecord::GetPlanetRecords");
+    a_StarSpecies = H->sym("SporeCoop::cStarRecord_SetSpeciesKey");
     spaceext::on_save(host_save);
     spaceext::on_save(guest_save);
     return a_PlayerEmpire != 0;
