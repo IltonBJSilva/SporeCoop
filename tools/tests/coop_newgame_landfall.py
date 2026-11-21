@@ -156,9 +156,12 @@ def main():
     cell_caption(g)
     c(g, 'coop.pool meal 1000')
     c(h, 'coop.pool meal 1000')
-    time.sleep(10)
-    cell_caption(g)  # the guest's "bar full" caption: its game reports its bar to the host once it is closed
-    ck(wait(lambda: prog(h)[1] == 1 and prog(g)[1] == 1, 60), 'every bar full on both games')
+    # the "bar full" captions: a guest's game reports its bar to the host once its caption is closed
+    def all_full():
+        cell_caption(g)
+        cell_caption(h)
+        return prog(h)[1] == 1 and prog(g)[1] == 1
+    ck(wait(all_full, 90, 3), 'every bar full on both games')
     time.sleep(10)
     cell_caption(h)
     t0 = time.time()

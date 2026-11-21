@@ -10,7 +10,7 @@ role: guest
 versions: 0.7.15.94
 fixed_in: unreleased
 branch: fix/guest-landfall
-commits: caf95ff8, 7db156c3
+commits: 36a63858, caf95ff8, 7db156c3
 tests: tools/tests/coop_newgame_landfall.py (manual driver, Windows lane)
 signature:
 docs: docs/re/creations.md#creations-guest-landfall
@@ -53,6 +53,11 @@ Carnivore "Glorbo" blue in the start choice, both fill their own bars, the vote 
   "Glorbo" grown from its cell; after the editor the guest plays 7C1A600D 'Glorbo' at its own nest 56 m from the host's;
   the host's game shows the guest's creature as 'Glorbo' (coop.creations player 1) and the party's seat 1 has species
   7C1A600D (seat 0 the host's 292AC9EB).
+- A guest's second new game (lane B, 2026-11-21): its choices.ini still named the land creature of its earlier game
+  (creature=292AF57C, chosen in another world). FAIL before 36a63858 (planet Kylinmak): the landfall never ran
+  (g_chosen), the guest played the world's default 292AF70F with no name, the host's creature. PASS with it (planet
+  Mirey): landfall made=1, the editor on its own "Glorbo" 292AFAFF, the host shows 7C1E668C 'Glorbo'. A choice holds over
+  the landfall only in the world it was chosen in (BUG-0638's choice_here).
 - Driver: tools/tests/coop_newgame_landfall.py (the same steps in one script; --landfall-off / --party-off are the twins). The runs above were made with its steps as separate scripts; the combined script waits for a lane.
 - no-fail-run: no lab test drives the start choice and the Cell stage end to end yet; FAIL and PASS were run by hand on
   lane B as above.
@@ -61,3 +66,4 @@ Carnivore "Glorbo" blue in the start choice, both fill their own bars, the vote 
 - 2026-11-20: opened.
 - 2026-11-20: fixed on fix/guest-landfall (from feat/start-choice): Lineages' landfall conversion ported, with the
   flush of My Creations the first port missed.
+- 2026-11-21: a creature choice of an earlier game no longer stops the landfall (36a63858).

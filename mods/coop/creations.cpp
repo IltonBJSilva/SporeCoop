@@ -3391,6 +3391,15 @@ static bool g_land_queued;
 static double g_land_started, g_land_retry;
 static unsigned g_land_made, g_land_fails;
 bool landfall_pending() { return g_landfall_fix && g_land_cell.instance != 0; }
+// a creature the guest chose holds over the landfall only in the world it was chosen in (BUG-0638): a choice of an
+// earlier game (choices.ini, e.g. the land creature of the guest's last campaign) let the host's creature in instead
+// (lane B 2026-11-21: the guest's second new game played the world's default 292AF70F)
+static bool creature_chosen_here()
+{
+    if (!g_chosen[kCreature])
+        return false;
+    return !g_choice_world_fix || !g_choice[kCreature].instance || choice_here(kCreature);
+}
 
 static std::u16string utf16(const std::string& s)
 {
@@ -3494,7 +3503,7 @@ static void landfall_clear()
 // true while the conversion runs (the rest of the creations tick waits)
 static bool landfall_tick(double now)
 {
-    if (!g_landfall_fix || C.sess->role() != net::Role::Client || g_chosen[kCreature]) {
+    if (!g_landfall_fix || C.sess->role() != net::Role::Client || creature_chosen_here()) {
         landfall_clear();
         return false;
     }
@@ -3525,7 +3534,7 @@ static bool landfall_tick(double now)
     H->run_outside_frame( // writes resources: outside the frame
         [](void*) {
             g_land_queued = false;
-            if (!g_land_cell.instance || !C.sess->connected() || C.sess->role() != net::Role::Client || g_chosen[kCreature] ||
+            if (!g_land_cell.instance || !C.sess->connected() || C.sess->role() != net::Role::Client || creature_chosen_here() ||
                 game::mode_id() != modes::kCreature || modes::current_world() != g_land_world || !game::avatar())
                 return;
             double t = H->time_seconds();
