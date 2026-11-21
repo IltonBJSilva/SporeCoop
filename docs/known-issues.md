@@ -505,3 +505,12 @@ anchor so other docs can link to it:
 * Reproduce: a Civ session with the guest's nation, `coop.leave` on the guest while in Civ; its log shows "civ nations:
   founding seat 1's capital".
 * Ticket: BUG-9311.
+
+## Creature: a guest that chose its own creature mid-session crashed after its end-of-stage editor (2026-11-21, build/amigos-98)
+<a id="issue-guest-chosen-creature-nest-crash"></a>
+
+* What happens: a guest new to the world first plays the host's species, then chooses its own creature
+  (`coop.creations choose creature <key>`); at the end of Creature, 1.5 s after it leaves its editor, its game crashes
+  in Herd_NestPosition (a null nest) inside the evolve cinematic. The host is unaffected.
+* Reproduce: seen once (lane B, Marona of the dev1 galaxy copy, the 0.7.15.98 smoke); the steps are in the ticket.
+* Ticket: BUG-9316.
