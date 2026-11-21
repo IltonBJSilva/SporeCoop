@@ -829,7 +829,7 @@ static void test_settings()
     CHECK(parse_value(kCreatureMode, "on", v) && v == 1 && !parse_value(kCreatureMode, "hosts", v));
     CHECK(value_name(kCellRegen, 0).empty() && value_text(kCellRegen, 0) == "off");
     for (int i = kNameTags; i < kCount; i++) // every row of step 3 but friendly fire and the creature mode is on by default
-        CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney || i == kDifficulty ? 0 : i == kPlayerLimit ? 4 : i == kAutosave ? 2 : 1));
+        CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney || i == kDifficulty || i == kCustomCells ? 0 : i == kPlayerLimit ? 4 : i == kAutosave ? 2 : 1));
     // BUG-0870: difficulty scaling by party size: off by default, Live, seven named choices up to 400 %
     CHECK(kDefs[kDifficulty].scope == Scope::Live && kDefs[kDifficulty].max == difficulty::kChoices - 1);
     CHECK(value_text(kDifficulty, 0) == "off" && value_text(kDifficulty, 2) == "100 %" && value_text(kDifficulty, 6) == "400 %");
@@ -840,8 +840,8 @@ static void test_settings()
     CHECK(parse_value(kAutosave, "off", v) && v == 0 && parse_value(kAutosave, "30 min", v) && v == 4 &&
           !parse_value(kAutosave, "6", v));
     CHECK(kCount < 255); // MSG_SETTINGS: u8 n
-    // BUG-9302: the custom cells (Lineages' Custom Cells): on by default, Live
-    CHECK(kDefs[kCustomCells].def == 1 && kDefs[kCustomCells].scope == Scope::Live && std::string(kDefs[kCustomCells].key) == "cell.custom_cells");
+    // BUG-9302: the custom cells (Lineages' Custom Cells): off by default in the friends build (the host can turn it on), Live
+    CHECK(kDefs[kCustomCells].def == 0 && kDefs[kCustomCells].scope == Scope::Live && std::string(kDefs[kCustomCells].key) == "cell.custom_cells");
     // the wire: the whole table round trips; a key this build does not know is skipped; a cut message applies nothing
     Values a;
     a.v[kCellRegen] = 0;

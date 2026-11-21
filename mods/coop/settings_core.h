@@ -192,7 +192,7 @@ inline const Def kDefs[kCount] = {
      0, 0, 6, Scope::Live, "difficulty", false, "off|50 %|100 %|150 %|200 %|300 %|400 %"},
     {"cell.custom_cells", "Cell", "Custom cells in the pool",
      "on (with Player cells in the pool): the cells the players made (their My Creations, not the cells they play now) also swim as about one in six spawns of a native species with the same diet, only species of the player's size or smaller (never a giant); off: only the players' current cells",
-     1, 0, 1, Scope::Live, "custom_cells", false},
+     0, 0, 1, Scope::Live, "custom_cells", false},
 };
 
 // all.autosave (E2): the minutes of a choice (0 = off)

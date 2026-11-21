@@ -46,3 +46,4 @@ no-fail-run: a feature; the twin above failed as it should on lane D.
 
 ## History
 - 2026-11-21: opened.
+- 2026-11-21: build/amigos-97 (friends build 0.7.15.97): cell.custom_cells default OFF until the owner decides; the host can turn it on in the co-op settings (Cell page).

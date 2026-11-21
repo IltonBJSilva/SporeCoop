@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """BUG-9302 (Lineages' Custom Cells): the players' My Creations cells swim as native species of their diet, but only on
-spawns of the player's level or below (never a giant), with the session setting cell.custom_cells (default on).
+spawns of the player's level or below (never a giant), with the session setting cell.custom_cells (default off in the friends build; the test turns it on).
 
 What each game shows is read from the game: `coop.lineage` lists the live creature cells of the pool by the model key the
 game draws them with (cell +0xFC) and, for each cell of a player model, its level (+0x358) and what it chases.
