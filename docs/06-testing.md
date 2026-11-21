@@ -9315,3 +9315,15 @@ up to 4 meats: a single swim can miss); its own Cell card (`coop.cards cell`) an
 rejoin asks nothing and brings the cell and colour back. `--part off`: cell.start_choice off, no question in 60 s.
 Typing: `key backspace tap` erases (SporeKit `key 8` is the digit 8), `text <s>` types. Not run in the Linux lab yet;
 the same steps ran on lane B (Windows, 1024x768).
+
+## A late partner's own spaceship (2026-11-21, feat/space-late-launch)
+<a id="testing-space-late-launch"></a>
+
+`coop_space_late_launch.py` (suite `space_late_launch`, BUG-9299, about 7 min): the guest's own empire founded with the
+test seam `coop.space empires found`, then `coop.space empires launch offer` (a profile keeps the planet's choice in its
+worlds.ini [late_launch]: the seam forgets it), `launch go` opens the game's spaceship editor from Space. At 1024x768
+the editor's red cross is at (968, 748) and its check mark at (1000, 745); three drags from the palette's first row
+((55, 115), (135, 115), (215, 115)) onto the ring at (690, 330..430), a click on the name field (510, 743), `text`,
+RETURN make a valid design. Back in Space the new design shows in `coop.space empires ships` within about 3 s and on the
+host as `player <id> ufo: ... '<name>'` in `coop.creations`. Twin: `SPORE_FIX_OFF=space.late_launch` (no offer).
+By hand on a Windows lane (2026-11-21, the Dopov save, a real late join): ON PASS, OFF FAIL at the offer. The lab suite itself was not run (no Linux lab on this PC).
