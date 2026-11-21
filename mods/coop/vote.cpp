@@ -6,6 +6,7 @@
 // session callbacks.
 #include "coop_state.h"
 #include "own_progress.h"
+#include "rivals.h"
 #include "creature_rescue.h"
 #include "designs.h"
 
@@ -842,6 +843,14 @@ bool SK_CDECL h_Submit(void* req)
             notice(g_name + " evolves now (the others may evolve too)", -1);
         } else if (g_sess.role() == net::Role::Host) {
             if (!g_vote.active) {
+                std::string race_why; // BUG-9306: a Rivals Tribe stage ends when its race is over
+                if (mode == modes::kTribe && tribe_civ_editor(editor) && rivals::race_on(mode) && !rivals::race_over(mode, &race_why)) {
+                    LOG("evolution: the end of the Tribe stage waits for the race (%s, BUG-9306)", race_why.c_str());
+                    feed("Not yet: the race of the Tribe stage runs (" + race_why +
+                         "); the advance button moves everybody on to Civilization when it is over");
+                    g_evo_flag_refused = true; // BUG-0920: the game sets its "editor pending" flag after this call
+                    return false;
+                }
                 if (stage_end && own_progress::hold_stage_end(true)) { // BUG-9265: every player's own bar first
                     LOG("evolution: the end of the Creature stage waits until every player's own bar is full (BUG-9265)");
                     g_evo_flag_refused = true; // BUG-0920: the game sets its "editor pending" flag after this call

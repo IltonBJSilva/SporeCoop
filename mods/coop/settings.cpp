@@ -222,6 +222,8 @@ int get(Id id)
     int v = !g_wired && id >= kNameTags ? kDefs[id].def : raw(id);
     if (kDefs[id].off_in_rivals && C.rivals && C.rivals())
         return 0;
+    if (kDefs[id].aid && g_wired && C.stage_rivals && C.stage_rivals()) // BUG-9306: no co-op aid in a Rivals stage
+        return 0;
     return v;
 }
 
@@ -269,7 +271,7 @@ static void list(SkOut* out)
         int v = raw((Id)i), e = get((Id)i);
         SAY("%s=%d %s [%s, default %s%s] %s: %s%s - %s\n", d.key, v, value_text(i, v).c_str(),
             d.scope == Scope::Live ? "live" : "session", value_text(i, g_defaults.v[i]).c_str(),
-            v != g_defaults.v[i] ? ", changed" : "", d.group, d.label, e != v ? " (off: Rivals mode)" : "", d.help);
+            v != g_defaults.v[i] ? ", changed" : "", d.group, d.label, e != v ? (d.aid ? " (off: a Rivals stage)" : " (off: Rivals mode)") : "", d.help);
     }
 }
 

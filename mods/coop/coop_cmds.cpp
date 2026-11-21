@@ -9,6 +9,7 @@
 #include "home_nests.h"
 #include "own_progress.h"
 #include "start_any.h"
+#include "rivals.h"
 #include "start_choice.h"
 #include "lineage_cells.h"
 #include "cellsync.h"
@@ -1247,6 +1248,15 @@ void register_commands_core()
                        SAY("  dna.cpp: totals_ignored=%u gains_kept=%u hunts_given=%u end_clicks_held=%u\n", g_own_totals_ignored,
                            g_own_gains_kept, g_own_hunts_given, g_end_clicks_held);
                        return 0;
+                   },
+                   nullptr, MT);
+    H->command_add(M, "coop.rivals",
+                   "coop.rivals [status | set <stage> together|rivals | timer <seconds>] - BUG-9306: the stage table (Together / Rivals per stage) and the race of a Rivals stage (winner, catch-up timer, every player's condition)",
+                   [](void*, int argc, const char* const* argv, SkOut* out) {
+                       std::string o;
+                       int rc = rivals::command(argc, argv, o);
+                       SAY("%s", o.c_str());
+                       return rc;
                    },
                    nullptr, MT);
     H->command_add(M, "coop.startany",

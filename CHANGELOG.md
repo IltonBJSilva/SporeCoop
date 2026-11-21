@@ -8,6 +8,13 @@
 - Cell: the cells the players made (their My Creations) swim in the tide pool again as native species of their diet,
   but only as cells of the player's size or smaller: no giant player cells, no extra cells (Co-op settings, Cell,
   "Custom cells in the pool", off by default: the host can turn it on; BUG-9302).
+- Rivals per stage (Co-op settings, page Rivals; every stage Together by default): a stage set to Rivals is a race,
+  the first player to finish it wins, the others get a catch-up timer, then everybody moves on together; the co-op
+  help of that stage is off while it is a race; no war between the players yet (BUG-9306).
+- Space: switching the Space stage between allies and rivals no longer splits or merges the money of a player who
+  has an empire of its own (BUG-9308).
+- Civilization: the citizens of a guest's own capital are the guest's species on the guest's screen, not the
+  host's (BUG-9304).
 
 ## [0.7.15.5] - 2026-11-19
 

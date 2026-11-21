@@ -4456,3 +4456,24 @@ BUG-9304. Switch `tribe.outfit_own_species` (designs.cpp; off: the 0.7.15.96 beh
   creature 7CCDE692: ... not loaded into it").
 * ? The guest's own in-place Creature -> Tribe still makes a player tribe of its own species for the ~20 s until the
   host's world loads; not seen to matter.
+## A Rivals Tribe race: the NPC tribes each player's village allied, the forced advance (2026-11-21, feat/rivals-stages)
+<a id="tribe-rivals-race"></a>
+
+BUG-9306, [docs/11-rivals.md#rivals-tribe-civ-race](../11-rivals.md#rivals-tribe-civ-race). Lane A (Windows, Steam
+build, two instances), Tretak (Tribe; the guest's own village at seat 1, four NPC tribes).
+
+* ✔ (runtime) With rivals.tribe = rivals the team alliance of [tribe-own-village-player](#tribe-own-village-player) is off:
+  `coop.tribe villages earn 1 00002365` raised the NPC's relation with the guest's village to 8.0 and the host's stayed
+  0.0 (with Together the host's rose to 8.0 within 5 s). The players' villages are no longer re-allied every 5 s (they
+  stay as they were founded: allied, 8.0).
+* ✔ (runtime) The count: the NPC tribes at the allied threshold (manager +0x1C) with each player's village; the
+  guest's 3 of 4 (more than half) won the race; after the catch-up timer the host's goal bar (cPlayer +0x10F0) was set
+  to its need (+0x10F4) and the goal message 0x5CC2589 posted (as `coop.tribe advance`): the HUD's advance button
+  0x6454B47 showed at (941, 737)-(1008, 765) on 1024x768 although the host's own goal was 0; its click, the stage
+  card's check and the caption led to the vote "Player wants to evolve (Tribe)", the guest's I'm ready opened the
+  host's City Hall editor.
+* ? Conquests: a conquered NPC tribe (+0x556) counts as taken but for nobody (who conquered it is not known); the
+  host's own count is at least its game's goal count (+0x10F0: its alliances and conquests). A guest's raids that
+  conquer an NPC tribe are not credited to the guest yet: needs RE (which field or relation tells the conqueror).
+* ~ The host's stage-end request (the City Hall editor, vote.cpp tribe_civ_editor) is refused while the race runs
+  (vote.cpp); not seen at runtime (the host never had its goal before the race ended in this run).

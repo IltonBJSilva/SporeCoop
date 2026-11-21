@@ -16,6 +16,10 @@ bool own_money_player(uint8_t player);
 // guest, BUG-9297: its own launch from Civ (civ_launch.cpp) started its game in Space: its player empire gets its own
 // captain (`species`, its nation's), name and colour. Call until it answers true (applied in this Space world).
 bool local_start(uint32_t species);
+// BUG-9308: own_money / own_money_player in both rivalry modes (they read false in the rivals mode, where every budget is
+// the own one anyway): space_rivalry.cpp's split and merge leave such a player's money alone
+bool own_empire();
+bool own_empire_player(uint8_t player);
 
 } // namespace spaceempires
 

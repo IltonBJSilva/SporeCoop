@@ -71,6 +71,7 @@
 #include "home_nests.h"
 #include "own_progress.h"
 #include "start_any.h"
+#include "rivals.h"
 #include "start_choice.h"
 #include "lineage_cells.h"
 #include "difficulty.h"
@@ -1151,6 +1152,7 @@ static void frame_stage_ticks(double now)
     identity::tick(now); // BUG-9258 (Lineages): a guest sends its identity after each join, the host its table
     party::tick(now);    // BUG-9260 (Lineages): the host seats the players of this planet's campaign
     own_progress::tick(now); // BUG-9265: every player's own DNA and bar (Cell, Creature), the stage end together
+    rivals::tick(now); // BUG-9306: the race of a Rivals stage; Space: rivals.space is the rivalry mode
     cards::tick(now);    // BUG-9263: every player's own stage history (consequence cards)
     start_any::tick(now); // BUG-9293: a guest in a new game at a later stage chooses its own creature and cards
     start_choice::tick(now); // BUG-9273: a guest new to a Cell planet chooses its own cell (diet, name, colour)
@@ -1718,6 +1720,15 @@ void on_overlay(void*, int, void*)
     H->overlay_text(x, y, 0xFFFFD040, head.c_str());
     y += 22;
     g_status_drawn_right = x + wmax;
+    if (std::string rl = rivals::line(); !rl.empty()) { // BUG-9306: the race of a Rivals stage, the timer on every HUD
+        int room = (sw > 0 ? sw : x + 480) - x - 12;
+        for (auto& l : utf8::wrap_fields(rl, ", ", room)) {
+            H->overlay_text(x, y, 0xFFFFB040, l.c_str());
+            wmax = std::max(wmax, utf8::overlay_width(l));
+            g_status_drawn_right = std::max(g_status_drawn_right, x + utf8::overlay_width(l));
+            y += 20;
+        }
+    }
     if (g_sess.connected() && g_mode == modes::kCreature) {
         std::string t = teamplay::status();
         if (!t.empty()) {
@@ -1944,7 +1955,7 @@ std::string ui_world_line()
         return "Load or start a game: the guests get your world automatically";
     if (g_sess.role() == net::Role::Client && g_sess.connected() && !g_adapter)
         return "Waiting for the host's world...";
-    return "";
+    return rivals::line(); // BUG-9306: the race of a Rivals stage ("" none)
 }
 
 std::vector<std::pair<std::string, net::Vec3>> partners()
@@ -2532,6 +2543,12 @@ static void init_world_share()
         oc.vote_active = [] { return g_vote.active; };
         own_progress::init(H, M, oc);
     }
+    {
+        rivals::Ctx rc; // BUG-9306
+        rc.sess = &g_sess;
+        rc.feed = [](const std::string& s) { feed(s); };
+        rivals::init(H, M, rc);
+    }
     cards::init(H, M, &g_sess);    // BUG-9263
     start_choice::init(H, M, &g_sess); // BUG-9273
     start_any::init(H, M, &g_sess);    // BUG-9293
@@ -2759,6 +2776,7 @@ static void init_player_modules()
         sc.playing = [] { return stage_mode(g_mode) && g_local != nullptr; };
         sc.world_name = [] { return modes::current_world_name(); };
         sc.rivals = [] { return spaceext::rivals() || pfind::g_test_rivals; }; // (tests: coop.find rivals 1)
+        sc.stage_rivals = [] { return rivals::here(); }; // BUG-9306: no co-op aid in a Rivals stage
         sc.feed = feed;
         settings::init(H, M, sc);
         store::Ctx stc; // E1 (BUG-1149): the per-player store on the host's disk

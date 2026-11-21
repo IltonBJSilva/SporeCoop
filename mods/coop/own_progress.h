@@ -41,6 +41,8 @@ bool active();
 bool local_values(Values& out);
 // every player's own bar is full in the stage played now; `waiting` names those who still fill theirs
 bool all_full(std::string* waiting = nullptr);
+// BUG-9306 (host): every player's bar now (players_now: the host's own line from its game); false when not active
+bool table(std::vector<Player>& out);
 
 // the stage's end. Cell: the host's click on History's check is held until every bar is full (then it runs again by
 // itself: switch_resume_due); a guest's click is never its own switch. Creature: the host's stage-end request is

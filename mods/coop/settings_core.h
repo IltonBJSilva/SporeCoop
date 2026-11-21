@@ -62,6 +62,13 @@ enum Id : int {
     kLineageCells,   // Cell: the players' own cells appear as NPC species in the pool (BUG-9275, lineage_cells.h)
     kDifficulty,     // all stages: difficulty scaling by party size (BUG-0870, difficulty.h); 0 = off
     kCustomCells,    // Cell: the players' My Creations cells too, on native species up to the player's level (BUG-9302)
+    // BUG-9306 (docs/11-rivals.md 11.2): the stage table, Together (0, the default) or Rivals (1) per stage (rivals.h)
+    kRivalsCell,
+    kRivalsCreature,
+    kRivalsTribe,
+    kRivalsCiv,
+    kRivalsSpace,
+    kRivalsCatchUp,  // the catch-up timer after a Rivals stage's winner (rivals_logic.h catch_up_seconds)
     kCount
 };
 
@@ -76,12 +83,15 @@ struct Def {
     const char* ini;     // coop.ini [coop] key whose value is the default of a new world, or nullptr
     bool off_in_rivals;  // read as off while the Rivals mode is on (the value itself is kept)
     const char* names = nullptr; // a choice of named values: "name0|name1|..." (value_text, the lobby), else on / off
+    // BUG-9306: a co-op aid (a bonus or a rescue between partners): read as off while the stage played now is a Rivals
+    // stage (docs/11-rivals.md 11.1: the co-op bonuses are not part of the Rivals; the value itself is kept)
+    bool aid = false;
 };
 
 inline const Def kDefs[kCount] = {
     {"cell.regen", "Cell", "Regeneration near a partner",
      "on: a player's cell regains health while a partner swims close by; off: health comes back as in a solo game",
-     1, 0, 1, Scope::Live, nullptr, false},
+     1, 0, 1, Scope::Live, nullptr, false, nullptr, true},
     {"all.partner_arrows", "All stages", "Partner arrows",
      "on: an arrow at the screen edge points to every partner off screen (never in Rivals mode); off: no arrows",
      1, 0, 1, Scope::Live, nullptr, true},
@@ -96,13 +106,13 @@ inline const Def kDefs[kCount] = {
      1, 0, 1, Scope::Session, "npcs_target_partners", false},
     {"creature.pack_rescue", "Creature", "Pack rescue",
      "on: a deadly hit next to a partner leaves 40 % health (once a minute); off: the hit kills",
-     1, 0, 1, Scope::Session, "teamplay", false},
+     1, 0, 1, Scope::Session, "teamplay", false, nullptr, true},
     {"creature.pack_heal", "Creature", "Partners heal each other nearby",
      "on: health regenerates while a partner is close; off: as in a solo game",
-     1, 0, 1, Scope::Live, "teamplay", false},
+     1, 0, 1, Scope::Live, "teamplay", false, nullptr, true},
     {"creature.joint_hunt", "Creature", "Joint hunt bonus",
      "on: a hit on a target another player hit in the last seconds deals +25 % damage; off: no bonus",
-     1, 0, 1, Scope::Session, "teamplay", false},
+     1, 0, 1, Scope::Session, "teamplay", false, nullptr, true},
     {"all.name_tags", "All stages", "Name tags over players",
      "on: every partner's name shows over its creature, tribe chief, vehicle or ship; off: no name tags",
      1, 0, 1, Scope::Live, nullptr, false},
@@ -117,10 +127,10 @@ inline const Def kDefs[kCount] = {
      1, 0, 1, Scope::Live, nullptr, false},
     {"cell.knockout", "Cell", "Knock-out instead of death",
      "on: a lethal hit next to a partner knocks the cell out, a partner revives it within 10 s; off: the cell dies as in a solo game",
-     1, 0, 1, Scope::Session, nullptr, false},
+     1, 0, 1, Scope::Session, nullptr, false, nullptr, true},
     {"cell.respawn_small", "Cell", "Respawn next to the partner",
      "on: a knocked-out cell nobody revived respawns next to the partner as a small cell; off: it dies as in a solo game",
-     1, 0, 1, Scope::Session, nullptr, false},
+     1, 0, 1, Scope::Session, nullptr, false, nullptr, true},
     {"core.switch_vote", "Cell", "Vote before the Creature stage",
      "on: the host's switch from Cell to Creature waits for a vote of everybody; off: the stage starts at once",
      1, 0, 1, Scope::Session, nullptr, false},
@@ -132,13 +142,13 @@ inline const Def kDefs[kCount] = {
      1, 0, 1, Scope::Session, nullptr, false},
     {"tribe.pincer", "Tribe", "Pincer bonus",
      "on: members of two players hitting the same tribe within 10 s deal +50 % damage; off: no bonus",
-     1, 0, 1, Scope::Session, nullptr, false},
+     1, 0, 1, Scope::Session, nullptr, false, nullptr, true},
     {"tribe.chief_aura", "Tribe", "Chief aura",
      "on: members near their own chief hit +20 %, a chief about to fall next to a partner's member keeps 30 % health; off: no aura",
-     1, 0, 1, Scope::Session, nullptr, false},
+     1, 0, 1, Scope::Session, nullptr, false, nullptr, true},
     {"tribe.duet", "Tribe", "Duet",
      "on: performances of two players' members for the same village fill its mini-game faster; off: as in a solo game",
-     1, 0, 1, Scope::Session, nullptr, false},
+     1, 0, 1, Scope::Session, nullptr, false, nullptr, true},
     {"tribe.epic", "Tribe", "Epic creature event",
      "on: now and then an epic creature comes to the village (80 food when killed together); off: no co-op epic",
      1, 0, 1, Scope::Session, nullptr, false},
@@ -147,7 +157,7 @@ inline const Def kDefs[kCount] = {
      1, 0, 1, Scope::Session, nullptr, false},
     {"civ.joint_siege", "Civilization", "Joint siege bonus",
      "on: a city attacked by two players' vehicles is captured 50 % faster; off: no bonus",
-     1, 0, 1, Scope::Session, nullptr, false},
+     1, 0, 1, Scope::Session, nullptr, false, nullptr, true},
     {"civ.superweapon_vote", "Civilization", "Superweapons need a vote",
      "on: a superweapon fires after a vote of everybody; off: it fires at once",
      1, 0, 1, Scope::Session, nullptr, false},
@@ -193,6 +203,24 @@ inline const Def kDefs[kCount] = {
     {"cell.custom_cells", "Cell", "Custom cells in the pool",
      "on (with Player cells in the pool): the cells the players made (their My Creations, not the cells they play now) also swim as about one in six spawns of a native species with the same diet, only species of the player's size or smaller (never a giant); off: only the players' current cells",
      0, 0, 1, Scope::Live, "custom_cells", false},
+    {"rivals.cell", "Rivals", "Cell stage",
+     "together: nobody moves on before every player's own bar is full; rivals: a race, the first full bar wins the stage, the others get the catch-up timer, then everybody moves on",
+     0, 0, 1, Scope::Live, nullptr, false, "together|rivals"},
+    {"rivals.creature", "Rivals", "Creature stage",
+     "together: nobody moves on before every player's brain is fully grown; rivals: a race, the first fully grown brain wins the stage, the others get the catch-up timer, then everybody moves on",
+     0, 0, 1, Scope::Live, nullptr, false, "together|rivals"},
+    {"rivals.tribe", "Rivals", "Tribe stage",
+     "together: one team, an NPC tribe allied with one player's village is everybody's; rivals: a race, the first player whose village allied more than half of the NPC tribes wins, the others get the catch-up timer",
+     0, 0, 1, Scope::Live, nullptr, false, "together|rivals"},
+    {"rivals.civ", "Rivals", "Civilization stage",
+     "together: one team, the players' cities count together; rivals: a race, the first player whose nation owns more than half of the NPC cities wins, the others get the catch-up timer",
+     0, 0, 1, Scope::Live, nullptr, false, "together|rivals"},
+    {"rivals.space", "Rivals", "Space stage",
+     "together: allies, one shared budget; rivals: every player an empire of its own with its own budget, relations between the players (alliance, war)",
+     0, 0, 1, Scope::Live, nullptr, false, "together|rivals"},
+    {"rivals.catch_up", "Rivals", "Catch-up timer",
+     "how long the others play on after the winner of a Rivals stage, before everybody moves on",
+     3, 0, 4, Scope::Live, nullptr, false, "1 min|2 min|3 min|5 min|10 min"},
 };
 
 // all.autosave (E2): the minutes of a choice (0 = off)

@@ -2472,3 +2472,18 @@ HUD "Military"; the QA campaign's guest capital was spec=1, economic). The NPC c
   host's, not at the same spots on the guest's); not checked further.
 * ✗ BUG-9311: in that run, when the guest left the session while in Civ, its game founded a capital for seat 1 in its
   own copy of the host's world (the host-side founding runs on a game without a session).
+## A Rivals Civilization race: the players' nations' cities, the forced end window (2026-11-21, feat/rivals-stages)
+<a id="civ-rivals-race"></a>
+
+BUG-9306, [docs/11-rivals.md#rivals-tribe-civ-race](../11-rivals.md#rivals-tribe-civ-race). Lane A (Windows, Steam
+build, two instances), Demos (the host's and the guest's capital, 8 free sites).
+
+* ✔ (runtime) `coop.civ nations spawn` x 8 founded 8 NPC cities (10 of 10 sites); `coop.civ nations capture <ci> 1`
+  gave them one by one to the guest's nation (seat 1): the count rose 20 % a city (need 5 of 8) and the fifth won the
+  race. After the timer RaiseLevel(host nation, 4) (2 -> 4) and then GameCiv_ShowPlanetWon + PlanetWonPause showed the
+  end window's button 0x6453746 at (947, 737)-(1014, 765) on 1024x768 although the host's nation owned only its
+  capital; its click, History's check and the captions led to the vote "Player wants to edit a design (Civilization)",
+  the guest's I'm ready opened the host's spaceship editor.
+* ✔ (runtime) With rivals.civ = together and the guest at 6 cities of 10 nothing ends the stage (the team victory needs
+  every city), and no race is kept.
+* ~ The host's own native end (its nation taking the planet itself) is not held while the race runs (no hook on it).

@@ -3623,3 +3623,18 @@ BUG-9299, after [space-own-empires](#space-own-empires) and docs/re/civ.md#civ-g
 * Not done: a partner without a species of its own (no own seat species, it plays the host's empire) gets no offer: its
   ship is the host empire's (space_empires gives such a player no empire). The guest's own captain's HUD portrait is
   BUG-9296's.
+## The rivals switch and a guest's own empire money (2026-11-21, feat/rivals-stages)
+<a id="space-rivals-own-money"></a>
+
+BUG-9308, found while wiring `rivals.space` ([docs/11-rivals.md#rivals-stages-race](../11-rivals.md#rivals-stages-race)).
+Lane A, Dopov, the guest with its own empire (space_empires.cpp, BUG-9279: its Space money is its own also in Allies).
+
+* ✔ (runtime) The switch to rivals split the host's money among every player (host 100000 -> 50000) and the guest's
+  game added its share as share - total to its own empire's money (100000 -> 50000; with a guest at 0 it stayed 0);
+  the switch back merged the guest's last report into the host's money: 50000 of the 200000 were lost (twin run
+  `coop.fix space.rivals_own_money off`). spaceempires::own_money / own_money_player read false while the rivals mode
+  is on (their `active()`), so the merge (which runs before the mode flips) could not tell either: own_empire /
+  own_empire_player answer in both modes.
+* Fix (`space.rivals_own_money`): such a guest is outside the split and the merge, asks the host for no budget (K_ASK)
+  and ignores K_SET in the rivals mode: its own empire's money is its budget. Runtime: 100000 / 100000 kept through
+  rivals and back.
