@@ -813,3 +813,15 @@ BUG-9263. `MSG_OWN_CARDS` (75, session family 1.3, a type older versions ignore)
   plays the host's Cell world, when the value changes (checked every 2 s).
 A guest of an older version gets nothing it reads (its game shows the host's history, as before); an older host sends
 nothing (the guest's game keeps the "stages" row). Cards that are not a valid id of their stage are refused.
+
+## A host's long editor load and its guests' timeout (2026-11-20, fix/editor-load-timeout)
+<a id="netcode-editor-long-wait"></a>
+
+BUG-9291 / BUG-9290. A guest ends its session after `Session::timeout_ms` (30 s) without a packet from the host. An
+editor's first load can stand the host's main thread longer (30-60 s seen: the City Hall editor's palette images, the
+spaceship editor's property files, on a PC running several games), and the host sends nothing then. The host tells its
+guests just before it asks the game for an editor: MSG_HOST_BUSY with state Editor and why bit `kWhyLongWait` (0x100),
+sent at once and flushed (`Session::flush_now`). A guest waits `busy_model::kLongWaitMs` (180 s) while the host's last
+told state is such a stand (kWhyLongWait, Editor, or Away in a load); else 30 s. The host keeps its guests anyway: their
+packets wait in the socket and are read before its own timeout check. Switch `core.editor_long_wait`. Forced test:
+`kit.test.hang 45000` on the host right after the vote ends.
