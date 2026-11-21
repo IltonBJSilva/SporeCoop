@@ -41,12 +41,14 @@
 #include "space_ext.h"
 #include "space_map.h"
 #include "creations.h"
+#include "sui.h"
 #include "sporekit_game.hpp"
 #include "wire/space_empires.h"
 #include "world.h"
 
 using skg::cdecl_call;
 using skg::thiscall;
+using skg::vcall;
 
 namespace spaceempires {
 
@@ -561,6 +563,56 @@ static void name_undo()
     }
     g_renamed = nullptr;
 }
+// the Space HUD's planet panel (window 0x05D646C8: the active planet's owner, its name 0x044D94D1 and its species
+// picture 0x036C0957, docs/re/space.md#space-hud-planet-panel)
+constexpr uint32_t kPanelName = 0x044D94D1u, kPanelPicture = 0x036C0957u, kPngType = 0x2F7D0004u;
+// 1: the panel's picture is the png of creature `inst` (group 0x40626200), 0: another one, -1: not known
+static int hud_picture_is(uint32_t inst)
+{
+    static uintptr_t get_image = H->sym("UTFWin::Image::GetImage"), image_vt = H->sym("UTFWin::ImageDrawable::vftable");
+    sui::Win root = sui::main_window();
+    sui::Win w = root ? sui::find(root, kPanelPicture) : nullptr;
+    uint8_t* d = w ? (uint8_t*)sui::drawable(w) : nullptr;
+    if (!inst || !d || IsBadReadPtr(d, 0x28) || !image_vt || *(uint32_t*)d != (uint32_t)image_vt || !get_image)
+        return -1;
+    void* img = *(void**)(d + 0x24);
+    void* want = nullptr;
+    uint32_t k[3] = {inst, kPngType, 0x40626200u};
+    if (!cdecl_call<bool>(get_image, k, &want, false, -1, -1) || !want)
+        return -1;
+    const bool same = want == img;
+    vcall<void>(want, 1); // the reference GetImage gave
+    return same ? 1 : 0;
+}
+static std::string hud_panel()
+{
+    sui::Win root = sui::main_window();
+    sui::Win n = root ? sui::find(root, kPanelName) : nullptr;
+    void* e = player_empire();
+    const uint32_t cap = e ? key_at(e, kCaptainKey).i : 0;
+    char b[200];
+    snprintf(b, sizeof b, "name='%s' picture_is_captain(%08X)=%d", n ? sui::caption(n).c_str() : "?", cap, hud_picture_is(cap));
+    return b;
+}
+// BUG-9296: the planet panel is built when the active planet changes (SpaceGameUI_UpdatePlanetPanel); a rename of the
+// player empire afterwards left it showing the game's old name (the host's empire's) until the next planet. On: the
+// panel is built again right after this player's own empire is applied on its game. Off: as 0.7.15.96.
+static bool g_panel_fix = true;
+COOP_FIX("space.own_empire_panel", "BUG-9296", g_panel_fix,
+         "space: the Space HUD's planet panel shows a partner's own empire name at once (it kept the host's empire name)");
+static uint32_t g_panel_sets;
+static void hud_refresh() // outside the frame
+{
+    static uintptr_t refresh = H->sym("SporeCoop::SpaceGameUI_UpdatePlanetPanel"), ui_get = H->sym("SporeCoop::SpaceGameUI_Get");
+    if (!g_panel_fix || !refresh || !ui_get || !spaceext::in_space())
+        return;
+    void* ui = cdecl_call<void*>(ui_get);
+    if (!ui || IsBadReadPtr(ui, 0x228) || !*(void**)((uint8_t*)ui + 0x224)) // its layout (the HUD is built)
+        return;
+    thiscall<void>(refresh, ui);
+    g_panel_sets++;
+}
+static void apply_own(void* e, uint32_t species, bool ship);
 static void name_apply()
 {
     if (!g_name_fix || g_renamed || !g_own || g_answered != spaceext::world_epoch())
@@ -568,13 +620,20 @@ static void name_apply()
     void* e = player_empire();
     if (!e)
         return;
+    apply_own(e, g_species, true);
+}
+// the name, colour, captain (and ship) of this player's own empire on the empire object `e` of its game; put back by
+// name_undo (before a save, at the session's end)
+static void apply_own(void* e, uint32_t species, bool ship)
+{
     g_orig_name = name_of_empire(e);
     g_ship_set = g_captain_set = false;
     if (g_ship_fix) {
-        apply_ship(e); // (the library's list may come later: guest_tick tries again)
+        if (ship)
+            apply_ship(e); // (the library's list may come later: guest_tick tries again)
         // the captain: this player's own species (a creature of its own library)
-        const Key3 cap{g_species, 0x2B978C46u, 0x40626200u};
-        if (g_species && a_SetCaptain && creations::key_known({cap.i, cap.t, cap.g})) {
+        const Key3 cap{species, 0x2B978C46u, 0x40626200u};
+        if (species && a_SetCaptain && creations::key_known({cap.i, cap.t, cap.g})) {
             g_orig_captain = key_at(e, kCaptainKey);
             g_my_captain = cap;
             if (!(g_orig_captain == cap))
@@ -614,6 +673,7 @@ static void name_apply()
     }
     g_renamed = e;
     g_renamed_epoch = spaceext::world_epoch();
+    hud_refresh(); // BUG-9296
     H->log(M, SK_INFO, "empires: my empire is called '%s' here (the game's name '%s')", utf8(own_name()).c_str(),
            utf8(g_orig_name).c_str());
 }
@@ -622,6 +682,55 @@ static void name_task(void*)
 {
     g_name_queued = false;
     name_apply();
+}
+
+// BUG-9297: a guest's own launch from Civilization (civ_launch.cpp, BUG-9295) starts its own game in Space on its home
+// planet. That game is its copy of the host's Civ save, so its player empire had the host's captain and name until the
+// host's world loaded (only a world received from the host was given the guest's own). On: civ_launch gives the
+// guest's own nation species here and the guest's local start gets its own captain, name and colour (not the ship: it
+// flies the ship it has just designed; not the money: the host tells it with K_EMPIRE in the host's world), put back
+// before a save like the rest. Off: the host's captain and name until the host's world loads (0.7.15.96).
+static bool g_local_fix = true;
+COOP_FIX("space.own_captain_local", "BUG-9297", g_local_fix,
+         "space: a partner's own launch from Civ starts in Space with the partner's own captain and empire name, not "
+         "the host's");
+static uint32_t g_local_species, g_local_epoch, g_local_sets;
+static const char* g_local_why = "-"; // why the last local_start did not apply (status)
+static bool g_local_queued;
+static void local_task(void*)
+{
+    g_local_queued = false;
+    void* e = player_empire();
+    if (!e || !g_local_species || !spaceext::in_space() || !spaceext::world_epoch()) {
+        g_local_why = !e ? "no player empire" : "not in a Space world";
+        return;
+    }
+    if (g_renamed && g_renamed_epoch == spaceext::world_epoch()) {
+        g_local_why = "already my own empire here";
+        g_local_epoch = spaceext::world_epoch();
+        return;
+    }
+    g_renamed = nullptr;
+    apply_own(e, g_local_species, false);
+    g_local_epoch = spaceext::world_epoch();
+    g_local_sets++;
+    g_local_why = "applied";
+    H->log(M, SK_INFO, "empires: my own launch's Space start has my captain %08X and my empire's name", g_local_species);
+}
+bool local_start(uint32_t species)
+{
+    g_local_why = !g_local_fix ? "off" : !g_name_fix ? "name off" : !species ? "no species" : !active() ? "not active"
+                  : spaceext::is_host() ? "host" : !spaceext::in_space() ? "not in Space" : "queued";
+    if (!g_local_fix || !g_name_fix || !species || !active() || spaceext::is_host() || !spaceext::in_space())
+        return false;
+    if (g_local_epoch && g_local_epoch == spaceext::world_epoch() && g_renamed)
+        return true; // done in this world
+    g_local_species = species;
+    if (!g_local_queued) {
+        g_local_queued = true;
+        H->run_outside_frame(local_task, nullptr);
+    }
+    return false;
 }
 
 // the save hook on the guest: the game's own name goes into its save
@@ -780,11 +889,12 @@ static void on_session_end()
     g_diplo_join = {};
     g_diplo_last.clear();
     g_arch_applied = g_arch_epoch = 0;
+    g_local_species = g_local_epoch = 0;
 }
 
 static std::string status()
 {
-    char b[480];
+    char b[640];
     if (spaceext::is_host() || !spaceext::connected())
         snprintf(b, sizeof b,
                  "empires: fix=%d host roster=[%s] founded=%u asks=%u answers=%u reports=%u bad=%u writes=%u fail=%u"
@@ -795,12 +905,12 @@ static std::string status()
     else
         snprintf(b, sizeof b,
                  "empires: fix=%d guest own=%d seat=%d money=%d name='%s' color=%08X serial=%u answered_epoch=%u epoch=%u asks=%u"
-                 " sets=%u reports=%u diplo ready=%d sets=%u sent=%u ship=%08X captain=%08X archetype=%08X (set %u)",
+                 " sets=%u reports=%u diplo ready=%d sets=%u sent=%u ship=%08X captain=%08X archetype=%08X (set %u) local=%u (%s) panel=%u",
                  (int)g_fix, (int)g_own, g_seat, money_now(), utf8(name_of_empire(player_empire())).c_str(),
                  player_empire() ? *(uint32_t*)((uint8_t*)player_empire() + kColorId) : 0u, g_answer,
                  g_answered, spaceext::world_epoch(), g_g_asks, g_g_sets, g_g_reports, (int)g_diplo_ready, g_g_diplo_sets,
                  g_g_diplo_sent, player_empire() ? key_at(player_empire(), kShipKey).i : 0u,
-                 player_empire() ? key_at(player_empire(), kCaptainKey).i : 0u, g_arch_applied, g_arch_sets);
+                 player_empire() ? key_at(player_empire(), kCaptainKey).i : 0u, g_arch_applied, g_arch_sets, g_local_sets, g_local_why, g_panel_sets);
     return b;
 }
 
@@ -840,6 +950,20 @@ static std::string debug(const std::vector<std::string>& a)
         g_ship_choice = (uint32_t)strtoul(a[1].c_str(), nullptr, 16);
         name_undo();
         return "empires: my ship choice " + a[1] + " (set again in a moment)";
+    }
+    if (a.size() >= 2 && a[0] == "captain" && !spaceext::is_host()) { // tests: my captain's species (a creature of my library)
+        g_species = (uint32_t)strtoul(a[1].c_str(), nullptr, 16);
+        name_undo();
+        return "empires: my captain species " + a[1] + " (set again in a moment)";
+    }
+    if (!a.empty() && a[0] == "hud") { // tests: the Space HUD's planet panel (its owner's name and species picture)
+        static uintptr_t refresh = H->sym("SporeCoop::SpaceGameUI_UpdatePlanetPanel"), ui_get = H->sym("SporeCoop::SpaceGameUI_Get");
+        void* ui = ui_get ? cdecl_call<void*>(ui_get) : nullptr;
+        if (!ui || !refresh || !spaceext::in_space())
+            return "empires: no Space HUD";
+        if (a.size() >= 2 && a[1] == "refresh")
+            thiscall<void>(refresh, ui);
+        return "empires: hud " + hud_panel() + "\n";
     }
     if (!a.empty() && a[0] == "ships") {
         std::string s;

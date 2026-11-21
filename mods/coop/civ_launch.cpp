@@ -20,10 +20,12 @@
 
 #include "civ_internal.h"
 #include "civ_nations.h"
+#include "creations.h"
 #include "designs.h"
 #include "fixes.h"
 #include "lifecycle.h"
 #include "modes.h"
+#include "space_empires.h"
 #include "world.h"
 
 using skg::cdecl_call;
@@ -47,6 +49,9 @@ static std::string g_planet;
 static double g_at, g_posted;
 static uint32_t g_armed, g_prepared, g_editors, g_launched, g_released, g_held;
 static std::string g_last = "-";
+static uint32_t g_species;   // my nation's species (BUG-9297: my own launch's captain)
+static double g_next_own;
+static bool g_own_done;
 
 static const char* phase_name(Phase p)
 {
@@ -85,9 +90,16 @@ void on_vote_end(uint32_t editor)
     g_planet = modes::current_world_name();
     g_at = H->time_seconds();
     g_posted = 0;
+    // my captain: my nation's species; on the guest's game an adopted nation keeps 0 there (the host's game has the
+    // seat's species): then my own creature, the one my seat plays (runtime 2026-11-21, Kealeneon)
+    g_species = nations::own_species();
+    if (!g_species)
+        g_species = creations::mine(creations::kCreature).key.instance;
+    g_own_done = false;
+    g_next_own = 0;
     g_armed++;
-    H->log(M, SK_INFO, "civ launch: the spaceship vote ended: my own launch on %s (my nation %08X)", g_planet.c_str(),
-           nations::own_faction());
+    H->log(M, SK_INFO, "civ launch: the spaceship vote ended: my own launch on %s (my nation %08X, species %08X)",
+           g_planet.c_str(), nations::own_faction(), g_species);
 }
 
 // outside the frame (RaiseLevel can start the game's unlock caption, ShowPlanetWon builds UI)
@@ -172,6 +184,11 @@ void tick()
         return;
     case Phase::Space:
         if (mode == modes::kSpace) {
+            // BUG-9297: my own captain and empire name on my own Space start (space_empires.cpp)
+            if (!g_own_done && g_species && now >= g_next_own) {
+                g_next_own = now + 1.0;
+                g_own_done = spaceempires::local_start(g_species);
+            }
             const int ctx = space_context();
             if (ctx == 1 || ctx == 2)
                 end("my ship left its home planet");
@@ -196,10 +213,10 @@ std::string status()
     char b[400];
     snprintf(b, sizeof b,
              "civ launch: fix=%d phase=%s planet=%s age=%.0f s armed=%u prepared=%u editors=%u launched=%u released=%u "
-             "held_frames=%u last=%s\n",
+             "held_frames=%u species=%08X own_start=%d last=%s\n",
              (int)g_fix, phase_name(g_phase), g_planet.empty() ? "-" : g_planet.c_str(),
              g_phase == Phase::None ? 0.0 : H->time_seconds() - g_at, g_armed, g_prepared, g_editors, g_launched, g_released,
-             g_held, g_last.c_str());
+             g_held, g_species, (int)g_own_done, g_last.c_str());
     return b;
 }
 
