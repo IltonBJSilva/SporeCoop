@@ -10,7 +10,7 @@ role: host
 versions: 0.7.15.97
 fixed_in:
 branch: feat/space-guest-home
-commits:
+commits: 7eef1f1b
 tests: E:\Repositorio\SporeCoop-wt\sgh\t3.py on lane A (not in the repo); tools/tests/coop_space_guest_home.py check 5 (lab, not run: no Linux lab here)
 signature: BreakAlliance 0xD01E70 called from 0x101341C (Empire_AttitudeCheck) with the allies mirror's pol, rel 0.00
 docs: docs/re/space.md#space-mirror-ally-break
