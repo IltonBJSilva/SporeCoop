@@ -9315,3 +9315,37 @@ up to 4 meats: a single swim can miss); its own Cell card (`coop.cards cell`) an
 rejoin asks nothing and brings the cell and colour back. `--part off`: cell.start_choice off, no question in 60 s.
 Typing: `key backspace tap` erases (SporeKit `key 8` is the digit 8), `text <s>` types. Not run in the Linux lab yet;
 the same steps ran on lane B (Windows, 1024x768).
+
+## A two-player campaign from a new Cell game to Space on Windows lanes (2026-11-21, fix/qa-campaign)
+<a id="testing-campaign-qa"></a>
+
+QA of the friends build 0.7.15.96 (build/amigos-97) on lane B (1024x768 windows): one new game, no prepared saves, the
+per-player features checked on the OTHER game at each stage. Manual drivers (not in the repo, not lab tests; they use
+the lane B helper lib.py of the batch): E:\Repositorio\SporeCoop-wt\qa\s1_cell.py, s2_creature.py, s3_tribe.py,
+s4_tribe_civ.py, s5_civ.py, cap.py, s6_space.py, s7_leave.py, s8_gleave.py, b9289.py; outputs *.out and screenshots
+next to them. What each step needs, and how long it took (one PC, both games on it):
+* Cell (6 min from the galaxy slot to the Creature editors): the galaxy menu's empty slot is found by hovering the
+  slots of `coop.ui tree 3` (id 0x02E5A4A8) and looking for "New Game"; the host's wizard; the guest's "Your own cell"
+  page by its widgets (as coop_start_choice.py). `coop.pool meal 1000` fills a bar, but with the own progress's
+  `level_together` a player cannot get more than 99 food over the partner (the surplus is banked, `bank=`, and given
+  when the partner levels): to test "the guest full first" in Cell, feed the host first. The "bar full" captions must be
+  closed before a guest's bar reaches the host.
+* Creature (landfall editors 1 min, the stage with a reload 13 min): `coop.nest home` placed=1 is only set when the mod
+  moves the guest to its nest; a new game's guest starts at its own nest with placed=0. `coop.dna gain 3000` fills a
+  brain; the guest's History check with only its own bar full stays in the stage with "Nobody evolves alone".
+* Creature -> Tribe: the "Congratulations! You are about to enter the Tribal stage" caption holds both games until
+  its check (993,737) is clicked; the guest goes through the galaxy entry mode twice while the world comes.
+* Tribe (with a reload 7 min): `coop.tribe` "tribe villages ... last: Bob's own village (seat 1, ...) at (x y z)" on the
+  host; `coop.view set` at that place shows it on the host's game.
+* Tribe -> Civ (4 min): `coop.tribe advance`, the Advance button 0x6454B47, the card, the City Hall vote, two host
+  editors (three parts dragged, done, dice, done); no guest editor.
+* Civ (with a reload 8 min): the guest's capital is founded about 4 s after the host closes the Civ intro caption
+  (`coop.civ` movie=1 until then). `coop.civ buy <city> 0` on each side and `coop.wallet` show the own money; `coop.civ
+  nations citizens` with the camera at a city (`coop.view set`) gives the citizens' species (BUG-9304).
+* Civ -> Space (12 min): `coop.civ nations spawn` until "no city founded", `coop.civ nations capture <ci> <seat>` of
+  every NPC city, then the History check (975,751)+(997,745), the vote, the guest's own History check after
+  `coop.civ launch` says phase=civ, both ship editors (agentC4's build_ship clicks), "Name Your Captain" on the host.
+  Leaving the home planet: on lane B the wheel only zooms out to the planet view and lane C's click sequence did not
+  work; `coop.space takeoff` (the game's planet -> system step) did, on the host, then on the guest once its game
+  held the host's world (`coop.civ launch` phase=space).
+The whole campaign took 55 minutes, with three save/reloads.
