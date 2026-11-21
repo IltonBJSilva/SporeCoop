@@ -91,6 +91,7 @@ KIND(101, empires,  EMPIRE,        Host)
 KIND(102, empires,  REPORT,        Guest)
 KIND(103, empires,  DIPLO,         Guest)
 KIND(104, empires,  DIPLO_SET,     Host)
+KIND(105, empires,  LAUNCH,        Guest)
 
 #undef FEATURE
 #undef KIND

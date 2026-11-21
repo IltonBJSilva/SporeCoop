@@ -14,6 +14,8 @@ void on_vote_end(uint32_t editor);
 void tick();
 // guest: a received world waits while its own launch runs (its History, its ship editor, its own first flight)
 bool holds_load();
+// the own launch is under way (BUG-9299: no offer of space_launch.cpp meanwhile)
+bool running();
 void reset(); // session end
 std::string status();
 

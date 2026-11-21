@@ -55,6 +55,13 @@ COOP_FIX("core.editor_long_wait", "BUG-9291", g_long_wait_fix,
          "core: the host tells its guests before an editor loads, and a guest waits longer for a host in an editor or a load");
 static uint32_t g_long_waits_told;
 static uint32_t g_normal_timeout_ms; // the session's own timeout (read once)
+// BUG-9305: a guest's own long stand (its spaceship editor's first load from Space stood its main thread 36 s on a busy
+// PC; the host heard nothing for 30 s and ended its session). A guest that tells it is about to stand (space_launch.cpp
+// K_LAUNCH state 2) makes the host wait up to busy_model::kLongWaitMs for every peer's packets until it tells the end
+// (another state) or kGuestLongMax passed. The switch is space.launch_long_wait (space_launch.cpp).
+static std::map<uint8_t, double> g_guest_long; // player -> when it told
+constexpr double kGuestLongMax = 600.0;
+static uint32_t g_guest_long_told;
 
 static busy_model::Announcer g_ann;
 static busy_model::HostView g_view;
@@ -193,6 +200,17 @@ static void guest_tick(double now)
     g_sess.timeout_ms = guest && g_host_busy_fix && g_long_wait_fix
                             ? busy_model::guest_timeout_ms(g_view.heard, g_view.last, g_normal_timeout_ms)
                             : g_normal_timeout_ms;
+    if (g_sess.role() == net::Role::Host && !g_guest_long.empty()) { // BUG-9305
+        for (auto it = g_guest_long.begin(); it != g_guest_long.end();) {
+            bool here = false;
+            for (const auto& p : g_sess.players())
+                here |= p.id == it->first;
+            it = !here || now - it->second > kGuestLongMax ? g_guest_long.erase(it) : std::next(it);
+        }
+        if (!g_guest_long.empty() && busy_model::kLongWaitMs > g_sess.timeout_ms)
+            g_sess.timeout_ms = busy_model::kLongWaitMs;
+    } else if (g_sess.role() != net::Role::Host)
+        g_guest_long.clear();
     if (!guest || !g_host_busy_fix) {
         if (g_hold != Hold::None)
             hold(false, -1, guest ? "core.host_busy off" : "the session ended");
@@ -243,6 +261,26 @@ void host_busy_long_wait(const char* what)
         m.seq);
 }
 
+// BUG-9305, host: guest `player` is about to stand long (on) or told it goes on (off)
+void host_busy_guest_long_wait(uint8_t player, bool on)
+{
+    if (g_sess.role() != net::Role::Host)
+        return;
+    if (!on) {
+        if (g_guest_long.erase(player))
+            LOG("host busy: player %u goes on: the usual timeout for it again (BUG-9305)", player);
+        return;
+    }
+    if (!g_guest_long.count(player)) {
+        g_guest_long_told++;
+        LOG("host busy: player %u stands for long (its own editor): this game waits up to %u s for it (BUG-9305)", player,
+            busy_model::kLongWaitMs / 1000);
+    }
+    g_guest_long[player] = H->time_seconds();
+}
+// BUG-9305, guest: what is queued leaves now (told just before this game's own long stand)
+void host_busy_flush_now() { g_sess.flush_now(); }
+
 // the outside-frame menu check (coop.cpp menu_check_task, 5 times a second): the pause menu's window is shown
 void host_busy_pause_menu(bool shown) { g_pause_menu_seen = shown; }
 
@@ -270,15 +308,15 @@ void host_busy_message(uint8_t from, net::Reader& r)
 
 std::string host_busy_status()
 {
-    char b[420];
+    char b[480];
     snprintf(b, sizeof b,
              "host busy: fix=%d role=%s now=%s why=%04X told=%s sent=%u | view heard=%d host=%s why=%04X settled=%s rx=%u "
-             "dropped=%u | wait=%s waits=%u resumes=%u | long_wait fix=%d told=%u timeout=%u ms\n",
+             "dropped=%u | wait=%s waits=%u resumes=%u | long_wait fix=%d told=%u timeout=%u ms guest_long=%zu told=%u\n",
              (int)g_host_busy_fix, g_sess.role() == net::Role::Host ? "host" : "guest", busy_model::state_name(g_host_now.state),
              g_host_now.why, busy_model::state_name(g_ann.sent.state), g_sent, (int)g_view.heard,
              busy_model::state_name(g_view.last.state), g_view.last.why, busy_model::state_name(g_edge.to), g_rx, g_rx_dropped,
              g_hold == Hold::None ? "none" : g_hold == Hold::Cell ? "cell" : "time", g_waits, g_resumes, (int)g_long_wait_fix,
-             g_long_waits_told, g_sess.timeout_ms);
+             g_long_waits_told, g_sess.timeout_ms, g_guest_long.size(), g_guest_long_told);
     if (g_hold != Hold::None) {
         size_t l = strlen(b);
         if (l > 0 && l + 40 < sizeof b)

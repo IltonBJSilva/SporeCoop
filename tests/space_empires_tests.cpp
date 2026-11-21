@@ -214,8 +214,40 @@ static void diplomacy_parts()
     CHECK(!ew::table_read(longer, t2));
 }
 
+// BUG-9299: K_LAUNCH, a partner's own spaceship from Space: the round trip, the states 1..4 only, a cut message
+static void launch_payload()
+{
+    namespace ew = wire::space_empires;
+    ew::Launch m;
+    m.to = 0;
+    m.serial = 9;
+    m.state = ew::kLaunchDone;
+    m.ship = 0x292B761Eu;
+    m.captain = 0x0C1D2E3Fu;
+    net::Writer w;
+    m.write(w);
+    CHECK(w.data.size() == 5 + 1 + 4 + 4);
+    ew::Launch back;
+    net::Reader r(w.data.data(), w.data.size());
+    CHECK(back.read(r) && !r.left() && back.serial == 9 && back.state == ew::kLaunchDone && back.ship == m.ship &&
+          back.captain == m.captain);
+    for (uint8_t st : {0, 5, 255}) {
+        ew::Launch bad = m;
+        bad.state = st;
+        net::Writer wb;
+        bad.write(wb);
+        ew::Launch x;
+        net::Reader rb(wb.data.data(), wb.data.size());
+        CHECK(!x.read(rb));
+    }
+    net::Reader cut(w.data.data(), w.data.size() - 1);
+    ew::Launch x;
+    CHECK(!x.read(cut));
+}
+
 int main()
 {
+    launch_payload();
     diplomacy_parts();
     file_format();
     validity();
