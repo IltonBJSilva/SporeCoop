@@ -37,6 +37,7 @@ def main():
     host, guest = start('cell', own_progress=True)
     ck = Checks()
     try:
+        host.call('coop.settings force cell.custom_cells off')  # BUG-9302: the My Creations cells are their own test
         if old:
             for con in (host, guest):
                 con.call('coop.fix cell.lineage_current off')
@@ -87,6 +88,7 @@ def main():
                 pass
         try:
             host.call('coop.lineage share 17')
+            host.call('coop.settings force cell.custom_cells on')
         except OSError:
             pass
     ck.faults(host=host, guest=guest)

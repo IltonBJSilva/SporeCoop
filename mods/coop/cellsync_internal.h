@@ -290,6 +290,7 @@ bool is_guest();
 // BUG-9275 (cellsync_lineage.cpp): PopulateMarker's depth on this game (h_Populate), the chooser's registration, the
 // stage's preloads forgotten, a guest's key of a host cell model, a loot drop's part tokens
 extern int g_marker_depth;
+extern int g_marker_level; // BUG-9302: the level of the marker PopulateMarker spawns now (-1: none)
 void lineage_init();
 void lineage_forget();
 void lineage_mirror_key(const uint32_t key[3], uint32_t use[3]);

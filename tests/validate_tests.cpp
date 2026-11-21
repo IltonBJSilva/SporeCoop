@@ -840,6 +840,8 @@ static void test_settings()
     CHECK(parse_value(kAutosave, "off", v) && v == 0 && parse_value(kAutosave, "30 min", v) && v == 4 &&
           !parse_value(kAutosave, "6", v));
     CHECK(kCount < 255); // MSG_SETTINGS: u8 n
+    // BUG-9302: the custom cells (Lineages' Custom Cells): on by default, Live
+    CHECK(kDefs[kCustomCells].def == 1 && kDefs[kCustomCells].scope == Scope::Live && std::string(kDefs[kCustomCells].key) == "cell.custom_cells");
     // the wire: the whole table round trips; a key this build does not know is skipped; a cut message applies nothing
     Values a;
     a.v[kCellRegen] = 0;

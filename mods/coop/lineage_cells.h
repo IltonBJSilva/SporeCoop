@@ -40,6 +40,11 @@ bool is_candidate(uint32_t instance); // host: a cell model of the pool's player
 // own stays native). Normal sizes and amounts, never another species' size. Off: the My Creations cells on every
 // native species (0.7.15.94).
 bool current_only();
+// BUG-9302 (Lineages' Custom Cells): the session setting cell.custom_cells (on, with cell.lineage_cells and current_only):
+// the players' My Creations cells (the host's own and the ones every guest sends, never a cell a player plays now) also
+// take about one in six spawns of a native creature species with the same diet, but only spawns of the avatar's level
+// or below (cellsync_lineage.cpp choose_model): the same pool budget, no giant. `coop.fix cell.custom_cells off`: off.
+bool custom_on();
 // host: the current cell of player `player` (-1: any player's, the host's own counting as "keep the native"); false: keep it
 bool pick_player(int player, uint32_t key[3]);
 std::string debug(const std::vector<std::string>& args);

@@ -16,6 +16,7 @@
 namespace cellsync {
 
 int g_marker_depth; // > 0 while PopulateMarker runs on the host (h_Populate): the native spawns
+int g_marker_level = -1; // BUG-9302: its level argument (the tile's level)
 CALL_GUARD_DEPTH("cellsync.marker_depth", g_marker_depth); // BUG-1047: a caught fault in PopulateMarker leaves no depth
 
 // BUG-9111 (Lineages): a player cell's model is loaded for the cell graphics before a cell of it is drawn, as the
@@ -37,6 +38,8 @@ static void preload_cell_model(const uint32_t key[3])
 }
 
 static unsigned g_lin_outside, g_lin_considered, g_lin_swapped, g_lin_own, g_lin_carrier, g_lin_nofit, g_lin_mapped;
+static unsigned g_custom_swapped, g_custom_above; // BUG-9302: custom cells given / spawns above the avatar's level kept
+static std::map<int, unsigned> g_custom_levels;    // BUG-9302 (tests): marker level -> custom swaps
 static std::unordered_set<uint32_t> g_part_carriers;        // .cell instances whose death dropped a part token
 static std::unordered_map<uint32_t, uint8_t> g_native_diet; // model instance -> bit 0 carnivore, bit 1 herbivore
 static std::mt19937 g_lin_rng{std::random_device{}()};
@@ -94,6 +97,10 @@ static int res_creature(void* ref)
     return F<int>(ai, 0);
 }
 
+static bool g_custom_level_fix = true; // BUG-9302: custom cells only on spawns up to the avatar's level
+COOP_FIX("cell.custom_level", "BUG-9302", g_custom_level_fix,
+         "cell: the players' My Creations cells take only spawns of the player's level or below (no giant player cells)");
+
 // modes.cpp h_GetModelKey: the model a new cell of resource `ref` gets (true: `out` instead of the native key)
 static bool choose_model(void* ref, const uint32_t native[3], uint32_t out[3])
 {
@@ -105,18 +112,31 @@ static bool choose_model(void* ref, const uint32_t native[3], uint32_t out[3])
         return false;
     uint8_t* s = S();
     const bool own_species = s && F<uint32_t>(s, 0x10) == native[0]; // the native spread of the player's own species
+    bool custom = false;
     if (lineage_cells::current_only()) {
         // BUG-9285: only the player species' spawns (6-8 at the avatar's level, never another species' size) take a
         // partner's current cell: in a partner's tile pass that partner's, in the host's pass any player's
-        if (!own_species)
+        if (own_species) {
+            g_lin_considered++;
+            if (!lineage_cells::pick_player(tile_pass_player(), out)) {
+                g_lin_own++;
+                return false;
+            }
+            g_lin_swapped++;
+            return true;
+        }
+        if (!lineage_cells::custom_on())
             return false;
-        g_lin_considered++;
-        if (!lineage_cells::pick_player(tile_pass_player(), out)) {
-            g_lin_own++;
+        // BUG-9302 (Lineages' Custom Cells): another native species may take a player's My Creations cell, but only a
+        // spawn of the avatar's level or below: a species of the levels above is bigger than the player (BUG-9285's
+        // giants). The marker's level is the tile's (IsTileActive: the food level's table level up to +5).
+        // `coop.fix cell.custom_level off` (the twin): every level, as Lineages had it (giants).
+        const int lof = s ? cell_logic::level_of_food(F<int32_t>(s, 0x1C)) : -1;
+        if (g_custom_level_fix && (g_marker_level < 0 || lof < 0 || g_marker_level > lof)) {
+            g_custom_above++;
             return false;
         }
-        g_lin_swapped++;
-        return true;
+        custom = true;
     }
     if (own_species) {
         g_lin_own++;
@@ -149,6 +169,11 @@ static bool choose_model(void* ref, const uint32_t native[3], uint32_t out[3])
         return false;
     }
     g_lin_swapped++;
+    if (custom) {
+        g_custom_swapped++;
+        if (g_custom_levels.size() < 32)
+            g_custom_levels[g_marker_level]++;
+    }
     return true;
 }
 
@@ -211,6 +236,10 @@ std::string lineage_debug()
              g_lin_outside, g_lin_considered, g_lin_swapped, g_lin_own, g_lin_carrier, g_lin_nofit, g_lin_mapped,
              (unsigned)g_part_carriers.size(), g_preloads);
     std::string out = b;
+    out += "custom swapped=" + std::to_string(g_custom_swapped) + " above=" + std::to_string(g_custom_above) + " by_level";
+    for (auto& [l, n] : g_custom_levels)
+        out += " " + std::to_string(l) + ":" + std::to_string(n);
+    out += "\n";
     if (!in_cell() || !avatar())
         return out;
     std::map<uint32_t, int> live;

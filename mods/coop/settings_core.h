@@ -61,6 +61,7 @@ enum Id : int {
     kStartChoice,    // Cell: a guest new to the planet chooses its own cell's diet, name and colour (BUG-9273, start_choice.h)
     kLineageCells,   // Cell: the players' own cells appear as NPC species in the pool (BUG-9275, lineage_cells.h)
     kDifficulty,     // all stages: difficulty scaling by party size (BUG-0870, difficulty.h); 0 = off
+    kCustomCells,    // Cell: the players' My Creations cells too, on native species up to the player's level (BUG-9302)
     kCount
 };
 
@@ -184,11 +185,14 @@ inline const Def kDefs[kCount] = {
      "on: a guest who starts on the planet in the Cell stage chooses its own cell (diet, name, colour), kept per player; off: a guest plays the host's cell or one of its own creations (F9)",
      1, 0, 1, Scope::Session, "start_choice", false},
     {"cell.lineage_cells", "Cell", "Player cells in the pool",
-     "on: about one in six spawns of a creature species of the tide pool takes the look of one of the players' own cells (from their My Creations; never a cell a player plays now) with the same diet, so a carnivore hunts and a herbivore grazes; off: only the game's own species",
+     "on: cells of the players' own species around them take the look of a partner's current cell (BUG-9285), and with Custom cells in the pool the cells the players made swim as native species too; off: only the game's own species",
      1, 0, 1, Scope::Live, "lineage_cells", false},
     {"all.difficulty", "All stages", "Difficulty scaling by party size",
      "per player over one, times this percent: enemies take +15 % more hits and hit +5 % harder (Creature animals, Space ships), hunger +2.5 % (Creature), a city +5 % more capture effort (Civilization), and +60 % stage progress where the party shares one total (own progress and single-player pace off); no extra creatures; off: the game's own values",
      0, 0, 6, Scope::Live, "difficulty", false, "off|50 %|100 %|150 %|200 %|300 %|400 %"},
+    {"cell.custom_cells", "Cell", "Custom cells in the pool",
+     "on (with Player cells in the pool): the cells the players made (their My Creations, not the cells they play now) also swim as about one in six spawns of a native species with the same diet, only species of the player's size or smaller (never a giant); off: only the players' current cells",
+     1, 0, 1, Scope::Live, "custom_cells", false},
 };
 
 // all.autosave (E2): the minutes of a choice (0 = off)
