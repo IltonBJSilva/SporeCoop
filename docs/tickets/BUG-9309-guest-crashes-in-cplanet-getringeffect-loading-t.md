@@ -13,7 +13,7 @@ branch: fix/civ-citizens
 commits:
 tests:
 signature: 0xC0000005 at 0x01340A20 Simulator::cPlanet::GetRingEffect+0x90 (data 0x13C) < cSpaceGfx::InitializeInternal+0x9A5 < SporeCoop::GalaxyMenu_SimReset
-docs:
+docs: docs/known-issues.md#issue-guest-ringeffect-after-editor
 related: BUG-0310, BUG-0284
 ---
 

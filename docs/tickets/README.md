@@ -1321,3 +1321,4 @@ not-reproduced, game-bug (Spore itself), wontfix, duplicate.
 | [BUG-9298](BUG-9298-lab-self-test-mem-script-fails-now-and-then-on-a.md) | open | test | Tools | 2026-11-21 |  | lab self-test mem_script fails now and then on a loaded WSL (the 400 MB script measured at 163 MB, the 25 s limit) |
 | [BUG-9304](BUG-9304-civ-own-nations-on-the-guest-s-own-game-its-own.md) | fixed | bug | Civ | 2026-11-21 |  | Civ own nations: on the guest's own game its own capital's citizens are the host's species |
 | [BUG-9309](BUG-9309-guest-crashes-in-cplanet-getringeffect-loading-t.md) | open | crash | Menu | 2026-11-21 |  | Guest crashes in cPlanet::GetRingEffect loading the host's world after its session closed while it was in its own creature editor |
+| [BUG-9311](BUG-9311-civ-own-nations-a-guest-s-game-that-left-the-ses.md) | open | bug | Civ | 2026-11-21 |  | Civ own nations: a guest's game that left the session founds a capital for seat 1 in its copy of the host's world |
