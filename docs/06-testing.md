@@ -9315,3 +9315,13 @@ up to 4 meats: a single swim can miss); its own Cell card (`coop.cards cell`) an
 rejoin asks nothing and brings the cell and colour back. `--part off`: cell.start_choice off, no question in 60 s.
 Typing: `key backspace tap` erases (SporeKit `key 8` is the digit 8), `text <s>` types. Not run in the Linux lab yet;
 the same steps ran on lane B (Windows, 1024x768).
+
+## A save copied into another test profile needs that profile's galaxy (2026-11-21, fix/space-captain)
+<a id="testing-save-copy-galaxy"></a>
+
+BUG-9301. A planet save (.spo) does not hold its galaxy: the stars and planet records are in the profile's Game0
+(stars.db, planetRecords.pkp / .pkt). A Space .spo copied alone into a profile with another galaxy crashes the game's
+own load (cStarRecord::GetPlanetRecord+0x12, a null star record). Copy the whole Game0 folder (with the .duo* files of
+the planet) and keep the profile's own Game0 to put back. Two more Windows-lane notes from the same run: on the Steam
+exe `sym.reload` loads 0 symbols and `mod.reload coop` then refuses to start (restart the games after a build), and
+a driver killed through its shell keeps running (stop the python process itself) and talks to the next run's games.

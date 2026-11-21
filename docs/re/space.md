@@ -3545,3 +3545,40 @@ BUG-9279, after [space-own-empires](#space-own-empires). Lane C, Steam exe 3010a
   star +0xB0, home planet +0xB4, stars +0x88); the host's colonies are its colonies on the partner's game. A home of its
   own would be a record-level colony of its species (15.2) set as +0xB4, and the host's colonies shown as the host's
   mirror empire (the reverse of 15): both untried.
+
+## The Space HUD planet panel is the planet's, not the captain (2026-11-21, fix/space-captain)
+<a id="space-hud-planet-panel"></a>
+
+BUG-9296, BUG-9297. Lane C, Steam exe 3010a413 (the GOG 2024 code), objdump of the unpacked .text + runtime.
+* ✔ The square beside the planet map at the bottom left of the Space HUD (with the communication button above it and a
+  name under it, "Brawgle E...") is **not the captain's portrait**: it is the planet panel, window 0x05D646C8 of the
+  SpaceGameUI layout (`[ui+0x224]`), shown by 0x1066240 when the active planet has an owner. Its picture 0x036C0957
+  (a UTFWin::ImageDrawable) is the png of the planet's **citizen species** (`SporeCoop::SpaceGameUI_PlanetPortraitKey`
+  0x1065F10: Simulator::cPlanetRecord::GetCitizenSpeciesKey 0xB8E1E0, the species profile's +0x504 / +0x50C with type
+  0x2F7D0004), its caption 0x044D94D1 the owner empire's name. `SporeCoop::SpaceGameUI_UpdatePlanetPanel` 0x106A500
+  (thiscall(SpaceGameUI*), plain ret) builds it when the active planet changes; nothing else (a captain key set
+  through cEmpire_SetCaptainKey, a rename of the empire) rebuilds it.
+* ✔ (runtime, Dopov, the guest's own empire seat 3 with captain 292846CB) the picture was not the captain's png
+  (`coop.space empires hud`: picture_is_captain=0) before and after a rebuild: on the host's home planet it is the
+  host's species, the planet's citizens, which is right. The captain is shown by the captain screen (the rank badge,
+  [#space-captain-portrait-null](#space-captain-portrait-null)), which reads cEmpire +0xC4 each time it opens.
+* ✔ The defect that was there: the panel kept the empire name of the moment it was built (the save's "Brawgle Empire")
+  after space_empires renamed the guest's player empire to "Bob's empire"; a rebuild (`coop.space empires hud
+  refresh`, or the next planet) showed "Bob's empire". Fix `space.own_empire_panel` (space_empires.cpp): the panel is
+  rebuilt right after the guest's own empire (name, colour, captain) is applied.
+* ✔ The ship picture at the bottom right (window 0xB0B00000, the png of cEmpire +0xB8's design, 0x1066730 /
+  0x1073EBF) follows Empire_SetSpacecraftKey by itself (message 0x5DA932E -> 0x1074DB3): the guest's own ship
+  'Bob2521' showed at once.
+* ~ Not done: showing the host's planets under the host's empire name on a guest (the guest's player empire owns the
+  host's colonies on its game, so after the rebuild they read "Bob's empire" with the host's citizens). That needs the
+  host's colonies as the host's mirror empire on the guest's game (#space-own-ship-captain, "Own home planet").
+* ✔ BUG-9297: the guest's own Civ -> Space launch ([civ-guest-launch](civ.md#civ-guest-launch)) starts its own game in
+  Space from its copy of the host's Civ save, so its player empire had the host's captain and name until the host's
+  world (or the host's K_EMPIRE, once the host is in Space) arrived. civ_launch.cpp now keeps the guest's species at
+  the vote's end and space_empires `local_start` gives the local start that captain, the empire name and colour
+  (switch `space.own_captain_local`); put back before a save like the rest. Details:
+  [civ-guest-launch-captain](civ.md#civ-guest-launch-captain).
+* Test commands: `coop.space empires hud [refresh]` (the panel's caption, whether its picture is the captain's png),
+  `coop.space empires captain <hex>` (guest: the captain species, a creature of its own library).
+* Pitfalls: `coop.space takeoff` / `land` before a Space game existed crashed the game (BUG-9300, guarded now). A Space
+  .spo copied alone into another profile crashes the load: its galaxy is in that profile's Game0 (BUG-9301).
