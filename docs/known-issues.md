@@ -468,6 +468,9 @@ anchor so other docs can link to it:
   founded); the camera at the guest's capital on both games, `coop.civ nations citizens` (city_pol of the guest's
   nation: the guest species on the host, the host species on the guest). Screenshot pair E:\Repositorio\SporeCoop-wt\qa\civ_cit.png.
 * Ticket: BUG-9304.
+* Fixed on fix/civ-citizens (switch tribe.outfit_own_species): the host's outfit had overwritten the guest's own
+  creature's species profile at the guest's own Tribe entry (docs/re/tribe.md#tribe-outfit-own-species); a game
+  restart of the guest cleared it before. Moves to the archive with the release.
 
 ## Creature: a guest's brain cinematic under the host's pause stays black (2026-11-20, fix/campaign-qa)
 <a id="issue-guest-brain-cine-paused"></a>
@@ -486,3 +489,19 @@ anchor so other docs can link to it:
   build/amigos-97 with no change of feat/space-late-launch, while fix/civ-own-camera's build passes (the code layout).
 * Reproduce: a build/amigos-97 build in WSL, then `python3 tools/tests/triage_symbols_check.py build <llvm-mingw dir>`.
 * Ticket: BUG-9303.
+## Menu: a guest crashed loading the host's world after leaving its own creature editor (2026-11-21, fix/civ-citizens)
+<a id="issue-guest-ringeffect-after-editor"></a>
+
+* What happens: a guest left the session while in its own creature editor (the vote's editor), its game went to the
+  galaxy menu; at its next join the load of the host's world faulted at cPlanet::GetRingEffect+0x90 (cSpaceGfx init).
+* Reproduce: seen once (lane B campaign replay); the steps are in the ticket.
+* Ticket: BUG-9309.
+
+## Civ: a guest's game that left the session founds a capital in its copy of the host's world (2026-11-21, fix/civ-citizens)
+<a id="issue-guest-alone-founds-capital"></a>
+
+* What happens: with own nations, a guest that leaves while in Civ has its game run the host's founding: a capital for
+  seat 1 in its local copy, a roster and a save of that copy in its received slot.
+* Reproduce: a Civ session with the guest's nation, `coop.leave` on the guest while in Civ; its log shows "civ nations:
+  founding seat 1's capital".
+* Ticket: BUG-9311.

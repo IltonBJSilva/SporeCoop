@@ -2401,7 +2401,7 @@ docs/06-testing.md#testing-campaign-qa).
   city's (military).
 * ~ The guest's capital (an economic city) gives economic vehicles only, so the guest's way to take a city is the buy;
   a military capture by a guest was not tried (no military city of its own).
-* ✗ BUG-9304: on the guest's own game its capital's 19 citizens were the host's species 292B8132 while the host's game
+* ✗ BUG-9304 (~ superseded (2026-11-21): the inferred cause below is wrong, see [civ-citizens-own-species](#civ-citizens-own-species)): on the guest's own game its capital's 19 citizens were the host's species 292B8132 while the host's game
   showed them as the guest's 7C8BEFA2 (`coop.civ nations citizens`, the camera at the capital on each game). Not a
   timing of the species key (still so after a rejoin) and not the player-nation path (still so with
   civ.nations_native off on the guest). Inferred: the key does not resolve to a species profile on the guest's game and
@@ -2432,3 +2432,43 @@ BUG-9297, after [civ-guest-launch](#civ-guest-launch). Lane C, Kealeneon, driver
   (space.own_empire_panel), all put back before a save. `coop.civ launch` prints `species=` / `own_start=`,
   `coop.space empires` `local=<n> (<why>)`.
 * Not changed: the money of that start is the save's until the host's K_EMPIRE (88,888 in the fixture both ways).
+
+## A guest's capital peopled by the host's species: the cause (2026-11-21, fix/civ-citizens)
+<a id="civ-citizens-own-species"></a>
+
+BUG-9304, after [civ-qa-campaign](#civ-qa-campaign).
+* CORRECTION (2026-11-21, fix/civ-citizens): the inference in [civ-qa-campaign](#civ-qa-campaign) ("the key does not
+  resolve to a species profile on the guest's game, SetSpeciesProfile's null fallback gives the player species") is
+  wrong. ✔ (runtime) The nation's key resolved on the guest (`coop.civ nations species`: key 7CB0FA33, profile 285207E0,
+  known=1) and the capital's 19 citizens had exactly that profile; the profile object itself held the host's species
+  (+0x504 292B9714, +0x510 the guest's local key of the host's creation). It had been overwritten in Tribe by the outfit
+  sync, docs/re/tribe.md#tribe-outfit-own-species. Fixed by `tribe.outfit_own_species`.
+* ✔ (runtime) The citizens take the nation's profile pointer as it is (their species key field is the profile's
+  +0x504): `coop.civ nations citizens` (the key) and `coop.civ nations species` (the profile pointers) agree.
+* ✔ (runtime) A fresh guest process loading a Civ save with the guest's nation was always right (Calvanin Civ copy,
+  Homan after Tribe -> Civ in one process, a nation re-keyed to the guest's current creature with `coop.civ nations
+  rekey 1`, a new founding after `.duonations` was removed): the cause lives in the process, not in the save.
+
+## A guest's military capture with its own nation (2026-11-21, fix/civ-citizens)
+<a id="civ-guest-military-capture"></a>
+
+Lane B, the Creature save Mirey played on to Civ in the game (dev3 / dev4): the host's nation 80002470 and the guest's
+own nation 00002BC2 (founded by the host, species 7CCDE692) were both military (`coop.civ`: spec=0 on both capitals, the
+HUD "Military"; the QA campaign's guest capital was spec=1, economic). The NPC city came from `coop.civ nations spawn`.
+* ✔ (runtime) The guest bought two land vehicles at its capital (`coop.civ buy 1 0` on the guest, through the host):
+  nation 00002BC2, owner 1, purpose 0 (military) on both games, 1000 each from the guest nation's money (3000 -> 1000);
+  a third purchase was refused by the host (buys_refused=1; not looked into, the money left was exactly 1000).
+  Their model is the NPC design 0680A8ED (the nation's own designs, not the host's 292BA9EF).
+* ✔ (runtime) The guest's attack order on the NPC city (`coop.civ attack <its vehicle> 2` on the guest: the game's
+  SetOrder type 2 on its mirror, sent to the host) made both vehicles attack on the host's game (order=2); the city's
+  hp 5200 -> 3600 in 160 s, then the game's capture count (+capture, the attacker's political id 00002BC2) 8 -> 87 and at
+  220 s the city was nation 00002BC2, owner 1 on both games ("Bob captured a city for their nation" in the host's feed,
+  an autosave "a city captured"); the guest nation's city count 1 -> 2 on the host.
+* ✔ (runtime) In the captured city: the host's purchase was refused ("this city belongs to player 1"); the guest's
+  purchase made vehicle #5 of nation 00002BC2, owner 1, purpose 0 (military) on both games, paid by the guest's nation
+  (1000 -> 0). Both its attackers kept nation 00002BC2 / owner 1 after the capture. Screenshot pair
+  E:\Repositorio\SporeCoop-wt\civcit\cap_mil_h.png / cap_mil_g.png ("[Bob]" over the city on both games).
+* ~ Some buildings of the captured city looked different on the two games in that screenshot (red spiky buildings on the
+  host's, not at the same spots on the guest's); not checked further.
+* ✗ BUG-9311: in that run, when the guest left the session while in Civ, its game founded a capital for seat 1 in its
+  own copy of the host's world (the host-side founding runs on a game without a session).
