@@ -86,6 +86,9 @@ enum Kind : uint8_t {
     kAsk = 1,    // host -> a guest: u8 start stage. Choose your own creature and your cards of the earlier stages
     kAnswer = 2, // guest -> host: the Choice
     kTaken = 3,  // host -> that guest: u8 1 taken (its seat has the cards now) / 0 refused
+    // BUG-9310: host -> a guest in the host's Space world whose seat has no species while its recorded choice names a
+    // creature (a choice made in another session that never became its species there): u32 creature, play it now
+    kUse = 4,
 };
 
 // ---- the planet's records
@@ -147,10 +150,16 @@ struct AskState {
     bool in_world = false;  // the guest plays the host's world now, settled
     bool recorded = false;
     bool asked = false;
+    // BUG-9310: a guest seated in the host's Space world (an older party: not new) whose seat has no species of its own
+    // yet, while the host gives partners their own homeworld (space.guest_home): asked too, so that it can found its own
+    // empire with a creature of its choice (or keep flying the host's empire with "keep")
+    bool space_no_species = false;
 };
 inline bool should_ask(const AskState& s)
 {
-    return s.setting && s.stage >= 1 && s.stage <= 4 && s.new_party && s.seated && s.in_world && !s.recorded && !s.asked;
+    const bool late = s.stage == 4 && s.space_no_species;
+    return s.setting && s.stage >= 1 && s.stage <= 4 && (s.new_party || late) && s.seated && s.in_world && !s.recorded &&
+           !s.asked;
 }
 
 } // namespace start_any

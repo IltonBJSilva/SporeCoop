@@ -16,6 +16,7 @@
 #include "net/protocol.h"
 #include "own_world.h"
 #include "party.h"
+#include "space_empires.h"
 #include "start_any_logic.h"
 #include "world.h"
 
@@ -36,7 +37,7 @@ static bool g_dirty, g_save_queued;
 static double g_next_planet, g_next_save, g_next_tick;
 static std::set<uint8_t> g_asked;
 static std::map<uint8_t, double> g_here_since;
-static uint32_t g_asks, g_answers, g_refused, g_applied, g_saves, g_loaded;
+static uint32_t g_asks, g_answers, g_refused, g_applied, g_saves, g_loaded, g_uses;
 // ---- guest
 static int g_prompt;           // the start stage asked for, 0 = none
 static uint32_t g_want;        // the creature we chose (0 = keep)
@@ -159,9 +160,24 @@ static void host_tick(double now)
         st.stage = stage;
         st.new_party = party::planet_new();
         st.seated = party::seat_of_player(p.id) >= 1;
+        if (stage == 4 && st.seated) // BUG-9310: a guest new to the host's Space world, no species of its own yet
+            st.space_no_species = spaceempires::home_asks() && !party::roster().seats[party::seat_of_player(p.id)].species;
         st.in_world = now - it->second >= 3;
         st.recorded = rec != nullptr;
         st.asked = g_asked.count(p.id) != 0;
+        // BUG-9310: a choice of this planet that names a creature, a seat with no species in the host's Space world: the
+        // guest plays that creature again (its game shares it, the party seat takes it, space_empires founds its empire)
+        if (st.space_no_species && rec && rec->c.creature && st.in_world && !st.asked) {
+            g_asked.insert(p.id);
+            net::Writer u;
+            u.u8(kUse);
+            u.u32(rec->c.creature);
+            S->send_reliable_to(p.id, net::MSG_START_ANY, u);
+            g_uses++;
+            H->log(M, SK_INFO, "start any: player %u plays its recorded creature %08X again (Space, BUG-9310)", p.id,
+                   rec->c.creature);
+            continue;
+        }
         if (!should_ask(st))
             continue;
         g_asked.insert(p.id);
@@ -290,6 +306,15 @@ void on_message(uint8_t from, net::Reader& r)
         g_prompt = stage;
         H->log(M, SK_INFO, "start any: the host asks for our own start at stage %u", stage);
         coop_ui::open(true); // the window opens on its "Your own start" page (coop_ui.cpp)
+    } else if (kind == kUse) { // BUG-9310
+        const uint32_t creature = r.u32();
+        if (!r.ok() || !creature || !enabled())
+            return;
+        for (const auto& o : creations::options(creations::kCreature))
+            if (o.key.instance == creature)
+                g_want = creature; // guest_tick plays it
+        H->log(M, SK_INFO, "start any: the host asks us to play our recorded creature %08X (%s)", creature,
+               g_want == creature ? "ours" : "not in our creations");
     } else if (kind == kTaken) {
         const uint8_t ok = r.u8();
         if (r.ok() && ok)
@@ -304,11 +329,11 @@ std::string status()
     char b[600];
     snprintf(b, sizeof b,
              "start any: fix=%d role=%s stage=%d new_party=%d planet=%s records=%zu\n"
-             "  host: asks=%u answers=%u refused=%u applied=%u saves=%u loaded=%u asked=%zu\n"
+             "  host: asks=%u answers=%u refused=%u applied=%u saves=%u loaded=%u asked=%zu uses=%u\n"
              "  guest: prompt=%d want=%08X asks_rx=%u answers=%u taken=%u creature_applies=%u mine=%08X\n",
              (int)g_fix, is_host() ? "host" : is_guest() ? "guest" : "none", stage_of(game::mode_id()), (int)party::planet_new(),
              g_planet.empty() ? "-" : g_planet.substr(g_planet.find_last_of("\\/") + 1).c_str(), g_recs.size(), g_asks, g_answers,
-             g_refused, g_applied, g_saves, g_loaded, g_asked.size(), g_prompt, g_want, g_rx_asks, g_answers_tx, g_taken,
+             g_refused, g_applied, g_saves, g_loaded, g_asked.size(), g_uses, g_prompt, g_want, g_rx_asks, g_answers_tx, g_taken,
              g_creature_applies, creations::mine(creations::kCreature).key.instance);
     std::string out = b;
     for (const auto& r : g_recs) {

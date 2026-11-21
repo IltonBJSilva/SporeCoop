@@ -3638,3 +3638,65 @@ Lane A, Dopov, the guest with its own empire (space_empires.cpp, BUG-9279: its S
 * Fix (`space.rivals_own_money`): such a guest is outside the split and the merge, asks the host for no budget (K_ASK)
   and ignores K_SET in the rivals mode: its own empire's money is its budget. Runtime: 100000 / 100000 kept through
   rivals and back.
+
+## A partner's own homeworld near the host's (2026-11-21, feat/space-guest-home)
+<a id="space-guest-home"></a>
+
+BUG-9310, after [space-own-empires](#space-own-empires) and [space-late-launch](#space-late-launch). The owner's
+decision of 2026-11-21: a partner who joins a Space save for the first time gets its own empire as if it had evolved,
+with a homeworld of its own near the host's. Lane A, Steam exe 3010a413 (the GOG 2024 code), two games, dev1's
+Pradnie (the guest's party seat 1 with species 0, a start-any record with creature 292846CB).
+* ✔ **Why BUG-9310's guest got no empire**: its seat's species stays 0 in Space. party.cpp takes a guest's species from
+  creations::player_key (its shared creature), and a guest in the host's Space world shares no creature until it
+  chooses one for that world (creations::choose records the choice per world, BUG-9293): the start-any record of
+  Pradnie named 292846CB, but nothing made the guest play it again. `coop.creations choose creature 292846CB` on the
+  guest: within a second the seat had species 7CA81684 (the host's key of that creature), the host founded its empire,
+  and the late-launch offer came (phase=offered).
+* Fix, start_any.cpp (`space.guest_home`): in the host's Space world a seated guest whose seat has no species is asked
+  with the "Your own start" page (creature and the four earlier cards) when it has no record, and told to play the
+  creature of its record (MSG_START_ANY kind 4 kUse) when it has one. A record with "keep" (creature 0): nothing, it
+  flies the host's empire.
+* ✔ **The citizens of a planet are its star's species**: `Simulator::cPlanetRecord::GetCitizenSpeciesKey` 0xB8E1E0
+  (objdump): for a record of tech > 1 it returns `cStarRecord +0x74` of the planet's star (0xBB9CF0 is `lea
+  eax,[ecx+0x74]; ret`), a ResourceKey {instance, type, group}; `SporeCoop::cStarRecord_SetSpeciesKey` 0xBB9D00 writes
+  it (16 callers, one in cStarManager_SetHomeStar). The HUD planet panel picture
+  ([space-hud-planet-panel](#space-hud-planet-panel)) and the colony's citizens follow it. ✔ After the guest's game set
+  its homeworld star's key to its species, `coop.space empires hud` read picture_is_captain(7CA81684)=1 at that planet
+  (the captain is the guest's species) and both screens' panels showed the guest's purple creature.
+* **The pick** (host, space_empires.cpp pick_home, the rule in space_empires_logic.h pick_home_star): the 64 stars
+  nearest the host's home star (cEmpire +0xB0) by the sector table, the home star left out; the first free one from the
+  N-th nearest on (session setting `space.guest_home`: off / 3 / 5 (default) / 8 / 12 systems away); free = no empire
+  (+0x54 = -1), no home / owned / NPC / Grox flag (+0x5C & 0xF = 0), StarType +0x48 4..12 (a real star or binary, not
+  the core, a black hole or a disk), not another seat's homeworld. Its planet: tech +0x194 <= 1 and type +0x28 2..5
+  (T0..T3: not a gas giant or an asteroid belt), the best type first (planets generated with RequirePlanetsForStar when
+  the star was never visited). A star without such a planet is left out and the pick runs again. ✔ Pradnie: 2.10 and
+  2.24 units from home in two runs (neighbour stars are ~0.5-1 apart: "a few systems away").
+* ~ Not the same star in four runs from the same save (5869587, 5869601, 5869588, 0059901E's star; 2.10 to 3.12
+  units): which star of the nearest ones is "free" or has planets differed. Harmless (the host picks once and keeps
+  it), not looked into.
+* ✔ **Save, reload, rejoin**: the host saved, both left, the host loaded the save again and hosted, the guest joined
+  again: the host read the homeworld from its file (no new pick), the guest's game made it its colony again, the host's
+  mirror showed it again with the guest's species.
+* The record: `<planet>.spo.duoemphome` (EMH1: u32 'EMH1', u8 n, n x {u8 seat, u32 PlanetID}), written with the empire
+  file (also with every save); MSG_SPACE kind 106 K_HOME {to, serial of the K_EMPIRE it follows, u32 planet} after
+  every K_EMPIRE with an empire (space family 1.6).
+* **The guest's game** makes it a colony of its own empire with `spaceext::colonize_own` (the record-level colony of the
+  kept colonies: AddStarOwnership, tech 5, FillPlanetDataForTechLevel: 2 cities on Selando) and sets the star's species
+  key to its species (put back before every save of its game, set again after). From then on it is one of the guest's
+  colonies: ✔ the host's allies mirror showed it (`coop.space allies star 5869601`: emp=80002C3C owner='Bob's empire',
+  planet 00599021 tech=5 civ(pol=80002C3C cities=2)).
+* **The host's mirror has the partner's species now** (space_allies.cpp, `allies.partner_species`): it used the host's
+  own species for every mirror (cEmpire::SetSpeciesProfile also writes every mirror star's +0x74); a partner with an
+  empire of its own gets its species (cSpeciesManager::GetSpeciesProfile of the seat's species, when the host's game
+  knows the creature). ✔ The host's citizens of the guest's homeworld: 7CA81684. restore_star puts the keys back
+  before a save.
+* ✔ Planet names differ per copy (generated per game): the same 00599021 was 'Khiadielon' on the guest and 'Selando'
+  on the host (as NPC empire names, 12.3).
+* ✔ A colony is not made on the active planet (colonize_own "wait"): a host that saved in the guest's home system
+  opens its world there, and the guest's homeworld waits until the guest's ship leaves that planet.
+* The Space page (F9) of the guest has "Your homeworld: <planet> (<star>)" with "Fly there" (spacecoop::travel).
+* Pitfall seen on the way: every host save (the autosave "a colony founded" too) showed "Your alliance with the Bob's
+  empire has been severed." on the host: the allies mirror's save-time undo (BUG-9312, open).
+* Not done: the guest's player empire's home (cEmpire +0xB0 / +0xB4) stays the host's home on its game (the "return to
+  your homeworld" of a destroyed ship, the home marker): changing it would make the guest's roster skip the colony as
+  "home" (space_map.cpp kept_roster) and needs its own undo before the save.

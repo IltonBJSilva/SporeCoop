@@ -245,8 +245,67 @@ static void launch_payload()
     CHECK(!x.read(cut));
 }
 
+// BUG-9310: the homeworld file and the pick rule
+static void homeworlds()
+{
+    namespace ew = wire::space_empires;
+    Homes h{};
+    h[1] = 0x00599013;
+    h[3] = 0x01460035;
+    auto b = encode_homes(h);
+    CHECK(b.size() == 5 + 2 * 5 && b[0] == 'E' && b[1] == 'M' && b[2] == 'H' && b[3] == '1');
+    Homes back{};
+    CHECK(decode_homes(b, back) && back == h);
+    Homes none{};
+    CHECK(decode_homes(encode_homes(none), back) && back == none);
+    auto cut = b;
+    cut.pop_back();
+    CHECK(!decode_homes(cut, back));
+    auto longer = b;
+    longer.push_back(0);
+    CHECK(!decode_homes(longer, back));
+    Homes twice{};
+    twice[1] = twice[2] = 0x00599013; // one planet for two seats
+    CHECK(!decode_homes(encode_homes(twice), back));
+    auto seat0 = b;
+    seat0[5] = 0; // seat 0 is the host's
+    CHECK(!decode_homes(seat0, back));
+    // the rule: the first free star from the rank-th nearest on (the home star itself is not in the list)
+    std::vector<HomeStar> st = {{10, 0.6f, true}, {11, 0.9f, true}, {12, 1.4f, false}, {13, 2.1f, true},
+                                {14, 1.1f, true}, {15, 3.0f, true}};
+    // sorted: 10 (0.6), 11 (0.9), 14 (1.1), 12 (1.4, taken by an empire), 13 (2.1), 15 (3.0)
+    CHECK(pick_home_star(st, 1) == 0);
+    CHECK(pick_home_star(st, 3) == 4);  // the third nearest: 14
+    CHECK(pick_home_star(st, 4) == 3);  // 12 is not free: 13
+    CHECK(pick_home_star(st, 0) == 0);  // rank < 1 counts as 1
+    st[3].taken = true;                 // 13 is another seat's homeworld
+    CHECK(pick_home_star(st, 4) == 5);
+    CHECK(pick_home_star(st, 9) == 5);  // none from the rank on: the free one nearest below it
+    for (auto& x : st)
+        x.free = false;
+    CHECK(pick_home_star(st, 5) == -1);
+    CHECK(pick_home_star({}, 5) == -1);
+    CHECK(home_rank(0) == 0 && home_rank(2) == 5 && home_rank(4) == 12 && home_rank(9) == 5);
+    // K_HOME
+    ew::Home m;
+    m.to = 2;
+    m.serial = 7;
+    m.planet = 0x00599013;
+    net::Writer w;
+    m.write(w);
+    net::Reader r(w.data.data(), w.data.size());
+    ew::Home x;
+    CHECK(x.read(r) && x.to == 2 && x.serial == 7 && x.planet == 0x00599013 && !r.left());
+    m.planet = 0;
+    net::Writer w0;
+    m.write(w0);
+    net::Reader r0(w0.data.data(), w0.data.size());
+    CHECK(!x.read(r0));
+}
+
 int main()
 {
+    homeworlds();
     launch_payload();
     diplomacy_parts();
     file_format();

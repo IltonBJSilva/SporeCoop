@@ -62,6 +62,7 @@ enum Id : int {
     kLineageCells,   // Cell: the players' own cells appear as NPC species in the pool (BUG-9275, lineage_cells.h)
     kDifficulty,     // all stages: difficulty scaling by party size (BUG-0870, difficulty.h); 0 = off
     kCustomCells,    // Cell: the players' My Creations cells too, on native species up to the player's level (BUG-9302)
+    kSpaceGuestHome, // Space: a partner with an empire of its own gets its own homeworld near the host's (BUG-9310)
     // BUG-9306 (docs/11-rivals.md 11.2): the stage table, Together (0, the default) or Rivals (1) per stage (rivals.h)
     kRivalsCell,
     kRivalsCreature,
@@ -203,6 +204,9 @@ inline const Def kDefs[kCount] = {
     {"cell.custom_cells", "Cell", "Custom cells in the pool",
      "on (with Player cells in the pool): the cells the players made (their My Creations, not the cells they play now) also swim as about one in six spawns of a native species with the same diet, only species of the player's size or smaller (never a giant); off: only the players' current cells",
      0, 0, 1, Scope::Live, "custom_cells", false},
+    {"space.guest_home", "Space", "Own homeworld for every partner",
+     "a partner who has (or chooses, when it joins a Space world for the first time) a species of its own gets its own empire with a homeworld of its own: a colony of its species on a planet of a free star system at least this many systems from the host's home; off: such a partner flies the host's empire, as before",
+     2, 0, 4, Scope::Session, "guest_home", false, "off|3 systems away|5 systems away|8 systems away|12 systems away"},
     {"rivals.cell", "Rivals", "Cell stage",
      "together: nobody moves on before every player's own bar is full; rivals: a race, the first full bar wins the stage, the others get the catch-up timer, then everybody moves on",
      0, 0, 1, Scope::Live, nullptr, false, "together|rivals"},

@@ -20,6 +20,12 @@ bool local_start(uint32_t species);
 // the own one anyway): space_rivalry.cpp's split and merge leave such a player's money alone
 bool own_empire();
 bool own_empire_player(uint8_t player);
+// BUG-9310: partners get their own homeworld in Space now (switch space.guest_home and the session setting of the same
+// name): start_any asks a guest seated in the host's Space world with no species of its own for one
+bool home_asks();
+// host, BUG-9310: the species (creature key instance, the host's key) of player `player`'s own empire, 0 = it has none
+// or the homeworlds are off (space_allies.cpp gives the partner's mirror empire that species: its colonies' citizens)
+uint32_t partner_species(uint8_t player);
 
 } // namespace spaceempires
 

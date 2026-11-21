@@ -265,6 +265,7 @@ to know them. A module reads a value with `settings::on(settings::kX)` / `settin
 | `space.disable` | Space | on | session | - | spacecoop.cpp filter_own_damage |
 | `cell.start_choice` | Cell | on | session | `start_choice` | start_choice.cpp enabled (a guest new to a Cell planet chooses its own cell, BUG-9273) |
 | `space.trade`, `space.contracts`, `space.diplomacy`, `space.allies`, `space.finale`, `space.rivals` | Space | on | session | - | space_ext.cpp (tick, messages, overlay, page rows of the feature), space_finale h_Enter, space_diplomacy sharing() |
+| `space.guest_home` | Space | 5 systems away (off / 3 / 5 / 8 / 12) | session | `guest_home` | space_empires.cpp homes_on, pick_home (a partner's own homeworld, the rank of the star system from the host's home); start_any.cpp (a guest in Space with no species is asked for one) (BUG-9310) |
 
 **Step 3 (BUG-0768, feat/w46-settings-all).** Every other mechanic of the plan's table is a row now; the default is
 0.7.11's behaviour. One twin switch for all of them: `coop.fix settings.all off` (SPORE_FIX_OFF=settings.all) makes
