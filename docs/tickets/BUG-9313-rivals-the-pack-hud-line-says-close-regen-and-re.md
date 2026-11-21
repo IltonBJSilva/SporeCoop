@@ -10,7 +10,7 @@ role: both
 versions: 0.7.15.98
 fixed_in: unreleased
 branch: build/amigos-98
-commits:
+commits: 21a401dd
 tests: by hand on lane B, Marona (Creature), driver E:\Repositorio\SporeCoop-wt98	9313.py (not in the repo; no lab test)
 signature:
 docs:
