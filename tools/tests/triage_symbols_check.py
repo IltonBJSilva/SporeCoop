@@ -70,7 +70,7 @@ def text_symbol(nm, dll, pattern):
 def planted_offset(llvm, dll, func_rva, first=0x40, last=0x100):
     """(offset, line0) in sporekit_mod_main for the planted fault: the first offset >= first whose innermost frame the
     line table puts at a coop.cpp line (not line 0); line0 is the first offset before it that has line 0 (or None).
-    Which bytes follow `call game::init` depends on the build's code layout, not on the code under test (BUG-9303):
+    Which bytes follow the call of the mod's game init depends on the build's code layout, not on the code under test (BUG-9303):
     the compiler gives the reload of a global after a call DWARF line 0 when it cannot keep it in a register."""
     offs = list(range(first, last))
     r = subprocess.run([os.path.join(llvm, 'bin', 'llvm-symbolizer'), f'--obj={dll}', '--relative-address',
