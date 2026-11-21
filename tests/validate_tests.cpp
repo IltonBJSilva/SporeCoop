@@ -25,6 +25,7 @@
 #include "start_any_logic.h"
 #include "host_world.h"
 #include "settings_core.h"
+#include "difficulty_logic.h"
 #include "find_core.h"
 #include "net/shared_ledger.h"
 #include "net/held_cmds.h"
@@ -767,6 +768,38 @@ static void test_host_world()
     CHECK(std::fabs(shown - 680) < 1e-9 && std::fabs(g.pending + 20) < 1e-9 && g.in_flight.size() == 1);
 }
 
+// BUG-0870: difficulty scaling by party size (difficulty_logic.h, Lineages BUG-9100 model 1 numbers)
+static void test_difficulty()
+{
+    using namespace difficulty;
+    CHECK(choice_percent(0) == 0 && choice_percent(2) == 100 && choice_percent(6) == 400 && choice_percent(9) == 0);
+    Rules off;
+    off.players = 4;
+    CHECK(!off.active() && off.enemy_health_percent() == 100 && off.damage_to_players(10.f) == 10.f);
+    Rules alone{1, 400};
+    CHECK(!alone.active() && alone.enemy_health_percent() == 100 && alone.workload_percent() == 100);
+    Rules two{2, 100};
+    CHECK(two.active() && two.enemy_health_percent() == 115 && two.enemy_damage_percent() == 105 &&
+          two.takeover_percent() == 105 && two.workload_percent() == 160);
+    CHECK(std::fabs(two.hunger_factor() - 1.025f) < 1e-6f);
+    CHECK(std::fabs(two.damage_to_players(20.f) - 21.f) < 1e-4f && std::fabs(two.damage_to_enemies(23.f) - 20.f) < 1e-4f);
+    CHECK(std::fabs(two.capture_damage(21.f) - 20.f) < 1e-4f && two.damage_to_players(-3.f) == -3.f);
+    // the extra rounds once over all players (Lineages extra_total): 4 players at 400 %
+    Rules four{4, 400};
+    CHECK(four.enemy_health_percent() == 280 && four.enemy_damage_percent() == 160 && four.takeover_percent() == 160 &&
+          four.workload_percent() == 820);
+    CHECK(std::fabs(four.hunger_factor() - 1.3f) < 1e-6f);
+    Rules three{3, 50};
+    CHECK(three.enemy_health_percent() == 115 && three.enemy_damage_percent() == 105); // 2 x 15 x 0.5, 2 x 5 x 0.5
+    CHECK((Rules{2, 999}.enemy_health_percent() == Rules{2, 400}.enemy_health_percent())); // capped at 400 %
+    // progress: never on top of own progress or the single-player pace (no double scaling)
+    CHECK(two.progress_gain(16.f, true, false) == 16.f && two.progress_gain(16.f, false, true) == 16.f);
+    CHECK(std::fabs(two.progress_gain(16.f, false, false) - 10.f) < 1e-4f && two.progress_gain(-5.f, false, false) == -5.f);
+    // hunger: only a falling meter falls faster; a meal (rising) and an empty meter are untouched
+    CHECK(std::fabs(two.hunger_after(50.f, 40.f) - 39.75f) < 1e-4f && two.hunger_after(40.f, 50.f) == 50.f);
+    CHECK(two.hunger_after(0.f, -1.f) == -1.f && off.hunger_after(50.f, 40.f) == 50.f + (40.f - 50.f) * off.hunger_factor());
+}
+
 // F3 of 0.7.12: the session settings (settings_core.h): who may set one, the wire and the file formats, a world's open
 static void test_settings()
 {
@@ -796,7 +829,11 @@ static void test_settings()
     CHECK(parse_value(kCreatureMode, "on", v) && v == 1 && !parse_value(kCreatureMode, "hosts", v));
     CHECK(value_name(kCellRegen, 0).empty() && value_text(kCellRegen, 0) == "off");
     for (int i = kNameTags; i < kCount; i++) // every row of step 3 but friendly fire and the creature mode is on by default
-        CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney ? 0 : i == kPlayerLimit ? 4 : i == kAutosave ? 2 : 1));
+        CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney || i == kDifficulty ? 0 : i == kPlayerLimit ? 4 : i == kAutosave ? 2 : 1));
+    // BUG-0870: difficulty scaling by party size: off by default, Live, seven named choices up to 400 %
+    CHECK(kDefs[kDifficulty].scope == Scope::Live && kDefs[kDifficulty].max == difficulty::kChoices - 1);
+    CHECK(value_text(kDifficulty, 0) == "off" && value_text(kDifficulty, 2) == "100 %" && value_text(kDifficulty, 6) == "400 %");
+    CHECK(parse_value(kDifficulty, "3", v) && v == 3 && !parse_value(kDifficulty, "7", v));
     // E2 (BUG-0864): the host's autosave: a choice of minutes, 10 by default, Live
     CHECK(kDefs[kAutosave].scope == Scope::Live && value_text(kAutosave, 2) == "10 min" && value_text(kAutosave, 0) == "off");
     CHECK(autosave_minutes(0) == 0 && autosave_minutes(2) == 10 && autosave_minutes(5) == 60 && autosave_minutes(9) == 10);
@@ -1558,6 +1595,7 @@ int main(int argc, char** argv)
     test_dna_ledger();
     test_host_world();
     test_settings();
+    test_difficulty();
     test_find();
     test_label_layout();
     test_held_cmds();

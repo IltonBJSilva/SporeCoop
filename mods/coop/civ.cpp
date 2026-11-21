@@ -2,6 +2,7 @@
 #include "civ_internal.h"
 #include "civ_wallet.h"
 #include "civ_nations.h"
+#include "difficulty.h"
 
 namespace civ {
 
@@ -1447,6 +1448,7 @@ void SK_CDECL h_AddCapture(void* ctx, void* city, void* meter, uint32_t owner, f
                 C.notice("joint siege: the city falls 50% faster");
             }
         }
+        dmg = difficulty::on_capture(dmg); // BUG-0870 (all.difficulty): a player's capture effort by party size
     }
     o_AddCapture(ctx, city, meter, owner, dmg, att, f);
 }

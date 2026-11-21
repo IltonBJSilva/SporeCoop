@@ -9369,3 +9369,15 @@ the editor's red cross is at (968, 748) and its check mark at (1000, 745); three
 RETURN make a valid design. Back in Space the new design shows in `coop.space empires ships` within about 3 s and on the
 host as `player <id> ufo: ... '<name>'` in `coop.creations`. Twin: `SPORE_FIX_OFF=space.late_launch` (no offer).
 By hand on a Windows lane (2026-11-21, the Dopov save, a real late join): ON PASS, OFF FAIL at the offer. The lab suite itself was not run (no Linux lab on this PC).
+## Windows lanes: copying a save between test profiles (2026-11-21, feat/difficulty-scaling)
+<a id="testing-copy-save-profile"></a>
+
+* A Space save (`<Planet>.spo`) copied alone into another test profile's Games/Game0 crashed the host at the load from
+  the galaxy menu: 0xC0000005 at `cStarRecord::GetPlanetRecord+0x12` (read of 0) < `cStarManager::GetPlanetRecord`
+  (the signature of BUG-0284): that profile's `stars.db` / `planetRecords.*` did not know the save's star. A Creature or
+  Civ save copied alone loaded (Etheis, Kealeneon). For Space, copy the whole Game0 folder into a fresh profile (lane D:
+  `python E:\Repositorio\SporeCoop-wt\prof.py dev7s`, then dev1's Game0 and, for My Creations, its
+  `EditorSaves.package`); the guest gets the host's world with the share.
+* Manual drivers that read a player's own creature's health after a bite: the partner's healing (creature.pack_heal)
+  and the creature's own regeneration refill about 1 health a second; switch pack_heal off and take the first reading
+  that moved, at once.

@@ -5,6 +5,7 @@
 // the frame, the away state is coop.cpp's host_away_tick.
 #include "coop_state.h"
 #include "own_progress.h"
+#include "difficulty.h"
 
 namespace coop_core {
 
@@ -128,6 +129,8 @@ float dna_pace_gain(float amount)
 {
     int div = pace_div();
     float out = dna_pace::share(amount, div);
+    // BUG-0870 (all.difficulty): stage progress by party size, only where the party's gains count whole in one total
+    out = difficulty::on_progress(out, own_progress::active(), settings::on(settings::kDnaPace));
     if (out != amount) {
         g_paced++;
         g_paced_in += amount;
@@ -141,6 +144,7 @@ int dna_pace_meal(int amount) // Cell: an own meal's food points
 {
     int div = pace_div();
     int out = g_pace_carry.take(amount, div);
+    out = difficulty::on_progress_meal(out, own_progress::active(), settings::on(settings::kDnaPace)); // BUG-0870
     if (out != amount) {
         g_paced++;
         g_paced_in += (float)amount;
