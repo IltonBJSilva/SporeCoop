@@ -2723,3 +2723,37 @@ BUG-9285 (the owner's test of the friends build 0.7.15.94: "many giants in the C
 * Now (cell.lineage_current): only player-species spawns are swapped, to a partner's current cell
   (creations::player_key); `coop.lineage` prints each player-model cell's level (+0x358) and the avatar's
   `food_level` (cell_logic::level_of_food(S+0x1C)) so a test can compare them.
+
+## Custom cells: the players' My Creations cells, at the player's level (2026-11-21, feat/custom-cells)
+<a id="cell-custom-cells"></a>
+
+BUG-9302, Lineages' "Custom Cells" (PR #196 README: "cells the players made swim in the Cell stage as native species,
+about 1 in 6 spawns, and follow their mouth's diet"). Lineages did it with BUG-9111 (our BUG-9275, the path that
+`cell.lineage_current off` keeps); BUG-9285 then limited our port to the players' current cells because the My
+Creations cells went onto every native species, the big ones of the levels above too (giants).
+* Now: the session setting `cell.custom_cells` (Cell, Live, on as in Lineages; coop.ini [coop] `custom_cells`), with
+  `cell.lineage_cells` on and `cell.lineage_current` on: the pool's candidates are the partners' current cells (owner
+  >= 0: the player species' spawns, #cell-lineage-current, unchanged) and up to 24 My Creations cells (owner -1: the
+  host's own and those every guest sends from its My Creations, never a cell a player plays now, by its bem
+  signature). A My Creations cell takes about one in six spawns of another native creature species with the same diet
+  (the 0x1006 AI follows the model's mouth), but only a spawn whose marker level (PopulateMarker's level argument,
+  kept in `g_marker_level` by h_Populate) is the avatar's food level (cell_logic::level_of_food(S+0x1C)) or below.
+  `coop.fix cell.custom_level off` (the twin) drops the level rule: every level, as Lineages had it;
+  `coop.fix cell.custom_cells off` switches the custom cells off. `coop.lineage` prints `custom=`, `owner=` per
+  candidate and `custom swapped= above= by_level` (swaps per marker level).
+* ✔ (runtime, lane D 2026-11-21, Steam build, Socle at food level 6, two instances, `coop.lineage share 100`) The marker's
+  level is the created cell's level (+0x358): swaps at marker levels 5 and 6 gave cells of levels 5 and 6. With the
+  rule every live My Creations cell on the host was of level 5 or 6 (12 models, 90-120 s runs, three runs), 108-356
+  spawns of the levels above kept their native look; the guest's game drew them from its own keys (all 12 models).
+  Twin (custom_level off): swaps at marker levels 7 and 9 too and live My Creations cells of level 7 on the host (the
+  bigger species): the check failed as it should.
+* ✔ (runtime) No more cells: the swap changes only the model of a spawn the game makes anyway. The host's pool, sampled
+  every 6 s while both players roamed: on 712 / 595 / 704 average (max 945 / 833 / 961), off 540 / 657 / 700 (max 688 /
+  860 / 924), alternating runs: the same within the noise of where the players swam.
+* ✔ (runtime) A herbivore My Creations cell on a native spawn chased plants, a carnivore one meat and creatures (`pcell
+  ... chase_kind=`), on the host and on the guest's game. Screenshots: the host's and the guest's game with the same
+  orange custom cell next to the players, the players' size.
+* ✔ (runtime) cell.custom_cells off: no new custom swap (the counter stayed for 90 s of roaming), the partners' current
+  cells still go onto the player species.
+* ~ The cells already made stay until the game culls them (off, or the twin's level-7 cells on the guest a minute
+  later), as the native ones do.

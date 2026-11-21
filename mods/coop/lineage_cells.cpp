@@ -25,6 +25,10 @@ static bool g_current_fix = true; // BUG-9285 (lineage_cells.h current_only)
 COOP_FIX("cell.lineage_current", "BUG-9285", g_current_fix,
          "cell: Lineages cells are only the players' current cells, on spawns of the player species at its level (no giant My Creations cells on every species)");
 bool current_only() { return g_current_fix; }
+static bool g_custom_fix = true; // BUG-9302 (lineage_cells.h custom_on)
+COOP_FIX("cell.custom_cells", "BUG-9302", g_custom_fix,
+         "cell: the players' My Creations cells swim as native species of their diet, only at the player's level or below (Lineages' Custom Cells)");
+constexpr size_t kCustomMax = 24; // My Creations cells in the pool (Lineages: 256): the first of the host's and the guests'
 
 struct Cand {
     creations::Key key; // as this game builds it
@@ -50,6 +54,9 @@ static unsigned g_out_n;
 static double g_out_last;
 
 bool enabled() { return g_fix && settings::on(settings::kLineageCells); }
+bool custom_on() { return enabled() && g_custom_fix && current_only() && settings::on(settings::kCustomCells); }
+// the custom cells (owner -1) are sent to every guest by the host and sent by every guest from its My Creations
+static bool custom_pool() { return !current_only() || custom_on(); }
 unsigned share_percent() { return g_share; }
 
 void init(const SkHost* host, SkMod* mod, net::Session* session)
@@ -105,7 +112,7 @@ static void build_current(std::vector<Cand>& pool)
 static void build(void*)
 {
     std::vector<Cand> pool;
-    if (current_only()) {
+    if (current_only() && !custom_on()) {
         build_current(pool);
         static size_t logged = (size_t)-1;
         if (pool.size() != logged) {
@@ -141,8 +148,14 @@ static void build(void*)
         cur += (cur.empty() ? "" : ",") + hex(s);
     std::set<uint32_t> seen;
     std::string cur_keys;
+    // BUG-9302: with the custom cells the partners' current cells come first (the player species' spawns, owner >= 0)
+    size_t custom_from = 0;
+    if (current_only()) {
+        build_current(pool);
+        custom_from = pool.size();
+    }
     auto add = [&](const creations::Key& key, const std::string& name, const std::string& from) {
-        if (!key.instance || pool.size() >= 256)
+        if (!key.instance || pool.size() - custom_from >= (current_only() ? kCustomMax : 256))
             return;
         g_seen++;
         std::string meta_name;
@@ -185,8 +198,8 @@ static void build(void*)
     static size_t logged = (size_t)-1;
     if (pool.size() != logged) {
         logged = pool.size();
-        H->log(M, SK_INFO, "coop: Lineages cells: %u player cell(s) for the Cell pool, %u left out as a player's current cell (BUG-9275)",
-               (unsigned)pool.size(), (unsigned)current.size());
+        H->log(M, SK_INFO, "coop: Lineages cells: %u player cell(s) for the Cell pool (%u partner current, BUG-9302 custom %s), %u left out as a player's current cell (BUG-9275)",
+               (unsigned)pool.size(), (unsigned)custom_from, custom_on() ? "on" : "off", (unsigned)current.size());
     }
     AcquireSRWLockExclusive(&g_lock);
     for (auto& c : pool) // keep what went out already
@@ -208,8 +221,8 @@ static void guest_tick(double now, bool in_cell)
         g_out.clear(); // the next connection gets them again
         return;
     }
-    if (!in_cell || !enabled() || current_only() || now - g_out_last < 2.0 || g_out.size() >= kGuestMax)
-        return; // (BUG-9285: our current cell reaches the host through the creations stream, nothing else is used)
+    if (!in_cell || !enabled() || !custom_pool() || now - g_out_last < 2.0 || g_out.size() >= kGuestMax)
+        return; // (BUG-9285: our current cell reaches the host through the creations stream; BUG-9302: the custom cells)
     g_out_last = now;
     for (auto& o : creations::options(creations::kCell)) {
         if (g_out.count(o.key.instance))
@@ -241,7 +254,7 @@ void tick(double now, bool in_cell)
     }
     // every guest gets each cell's records before the cell is used (its mirrors are built from them); BUG-9285: a
     // player's current cell goes to everybody with the creations stream already
-    if (!S || !S->connected() || g_building || current_only())
+    if (!S || !S->connected() || g_building || !custom_pool())
         return;
     static double last;
     if (now - last < 1.0)
@@ -258,8 +271,8 @@ void tick(double now, bool in_cell)
             continue;
         unsigned budget = 4; // a few bundles a second
         for (auto& c : g_pool) {
-            if (c.sent.count(p.id) || !budget)
-                continue;
+            if (c.owner >= 0 || c.sent.count(p.id) || !budget)
+                continue; // (a partner's current cell: the creations stream)
             budget--;
             if (creations::host_cell_out(p.id, c.key)) {
                 c.sent[p.id] = now;
@@ -282,6 +295,8 @@ bool pick(bool carnivore, bool herbivore, uint32_t key[3])
             if (p.id != S->my_id())
                 peers.push_back(p.id);
     for (auto& c : g_pool) {
+        if (c.owner >= 0)
+            continue; // BUG-9302: a partner's current cell goes only onto the player species (pick_player)
         // behaviour follows the mouth: the cell eats what the native species eats (an omnivore fits either)
         if (!((c.carn && carnivore) || (c.herb && herbivore)))
             continue;
@@ -311,13 +326,17 @@ bool pick_player(int player, uint32_t key[3])
     if (!enabled() || is_guest() || !TryAcquireSRWLockShared(&g_lock))
         return false;
     const Cand* c = nullptr;
+    std::vector<const Cand*> cur; // BUG-9302: the pool also holds custom cells (owner -1) now
+    for (auto& x : g_pool)
+        if (x.owner >= 0)
+            cur.push_back(&x);
     if (player >= 0) { // a partner's own area: its own species
-        for (auto& x : g_pool)
-            if (x.owner == player)
-                c = &x;
-    } else if (!g_pool.empty()) { // the host's area: every player's species alike (index 0: the host's own, native)
-        size_t i = std::uniform_int_distribution<size_t>(0, g_pool.size())(g_rng);
-        c = i ? &g_pool[i - 1] : nullptr;
+        for (auto* x : cur)
+            if (x->owner == player)
+                c = x;
+    } else if (!cur.empty()) { // the host's area: every player's species alike (index 0: the host's own, native)
+        size_t i = std::uniform_int_distribution<size_t>(0, cur.size())(g_rng);
+        c = i ? cur[i - 1] : nullptr;
     }
     if (c) {
         key[0] = c->key.instance;
@@ -353,14 +372,15 @@ std::string debug(const std::vector<std::string>& args)
                       " sent=" + std::to_string(g_sent) + " seen=" + std::to_string(g_seen) + " no_sig=" + std::to_string(g_no_sig) +
                       " no_diet=" + std::to_string(g_no_diet) + " dupes=" + std::to_string(g_dupes) +
                       " guest_out=" + std::to_string(g_out_n) + " current_only=" + (current_only() ? "1" : "0") +
+                      " custom=" + (custom_on() ? "1" : "0") +
                       " player_picks=" + std::to_string(g_player_picks) + " player_native=" + std::to_string(g_player_native) + "\n";
     AcquireSRWLockShared(&g_lock);
     out += "current " + (g_current.empty() ? std::string("none") : g_current) + " keys " +
            (g_current_keys.empty() ? std::string("none") : g_current_keys) + "\n";
     for (auto& c : g_pool) {
         char b[200];
-        snprintf(b, sizeof b, "cell %08X sig=%08X %s%s '%s' from=%s peers=%u\n", c.key.instance, c.sig, c.carn ? "C" : "-",
-                 c.herb ? "H" : "-", c.name.c_str(), c.from.c_str(), (unsigned)c.sent.size());
+        snprintf(b, sizeof b, "cell %08X sig=%08X %s%s '%s' from=%s peers=%u owner=%d\n", c.key.instance, c.sig, c.carn ? "C" : "-",
+                 c.herb ? "H" : "-", c.name.c_str(), c.from.c_str(), (unsigned)c.sent.size(), c.owner);
         out += b;
     }
     ReleaseSRWLockShared(&g_lock);

@@ -30,7 +30,11 @@ int SK_CDECL h_Populate(float prob, int layer, int level, void* query, void* bbo
         g_n.solo_spawns++; // BUG-0205: the host is away, our game fills its own pool
     }
     callguard::Depth depth(g_marker_depth); // BUG-9275: the native spawns (a Lineages cell may take one's model)
-    return o_Populate(prob, layer, level, query, bbox, marker, x);
+    const int outer = g_marker_level;
+    g_marker_level = level; // BUG-9302: the custom cells take only spawns up to the avatar's level
+    int r = o_Populate(prob, layer, level, query, bbox, marker, x);
+    g_marker_level = outer;
+    return r;
 }
 
 // ---- BUG-0174: the host keeps the world populated around every player, not only around itself ----
