@@ -11,7 +11,7 @@ versions: 0.7.15.96
 fixed_in: unreleased
 branch: fix/civ-citizens
 commits: 43d7e802
-tests: by hand on lane B, E:\Repositorio\SporeCoop-wt\civcit\t9304.py and t9304_2.py (not in the repo; the QA campaign drivers on the Creature save Mirey)
+tests: by hand on lane B, the two-player steps of docs/06-testing.md (testing-campaign-qa) from the Creature save Mirey to Civ, drivers E:\Repositorio\SporeCoop-wt\civcit\t9304.py and t9304_2.py (not in the repo; no lab test yet)
 signature:
 docs: docs/re/civ.md#civ-own-nations, docs/re/tribe.md#tribe-outfit-own-species
 related: BUG-9274, BUG-9294, BUG-9262, BUG-1156
@@ -87,8 +87,8 @@ guest plays its own creature 7CCDE692), driver E:\Repositorio\SporeCoop-wt\civci
 evolve to Tribe through the game (vote, editors, the guest's own Tribe entry), Tribe -> Civ, the guest's capital.
 * OFF (`coop.fix tribe.outfit_own_species off` on the guest): FAIL. In Tribe `coop.creations speciesof 7CCDE692` on the
   guest: "key 292AFAF6" (the host's); in Civ the guest's capital 00002AF9 (species 7CCDE692 on both games): guest
-  `citizens city_pol=00002AF9 species=292AFAF6 count=19`. Output civcit\t_off.out. The first reproduction (Phivenova
-  campaign replay, the same build without the switch): civcit\off4_g.png (the guest: the host's red creature in its
+  `citizens city_pol=00002AF9 species=292AFAF6 count=19`. Output civcit\t_off.out. The first reproduction (the Phivenova
+  replay, the same build without the switch): civcit\off4_g.png (the guest: the host's red creature in its
   own capital) / off4_h.png (the host: the guest's yellow creature at the same spot).
 * ON (the default): PASS. In Tribe the same speciesof gave "key 7CCDE692" (the outfit not loaded into it: "the player
   tribe's profile is the species of a player's own creature 7CCDE692 ... (BUG-9304)", then after the world reload "the
