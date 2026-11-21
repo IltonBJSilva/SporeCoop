@@ -473,6 +473,13 @@ bool own_money_player(uint8_t player)
     auto it = g_told.find(player);
     return it != g_told.end() && it->second >= 1;
 }
+bool own_empire_player(uint8_t player)
+{
+    if (!g_fix || !spaceext::connected() || !spaceext::is_host())
+        return false;
+    auto it = g_told.find(player);
+    return it != g_told.end() && it->second >= 1;
+}
 
 // ---------------- the guest ----------------
 static bool g_own;          // the host said: my own empire (sticky for the session)
@@ -541,6 +548,8 @@ static void ship_task(void*)
 static uint32_t g_renamed_epoch;
 
 bool own_money() { return active() && !spaceext::is_host() && g_own; }
+// BUG-9308: the same in both rivalry modes (space_rivalry.cpp's split and merge run while the mode changes)
+bool own_empire() { return g_fix && spaceext::connected() && !spaceext::is_host() && g_own; }
 int own_seat() { return own_money() ? g_seat : -1; }
 
 static std::u16string own_name() { return utf16(spaceext::name_of(spaceext::my_id()) + "'s empire"); }

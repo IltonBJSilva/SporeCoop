@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace rivalry {
 
@@ -17,5 +18,9 @@ bool on_hit(void* ufo, void* attacker, float dmg, int type, const float* dir);
 // true when rivals mode is on and this game's player is at war with player `id` (BUG-1032: the
 // host's own NPC ships and that player's ship then hit each other)
 bool at_war(uint8_t id);
+
+// BUG-9306 (host): switch to the rivals mode (true) or back to allies, as the Space page's button; "" or why not
+// (not in Space, already in that mode, the setting space.rivals off). rivals.cpp: the stage table's rivals.space
+std::string set_mode(bool rivals);
 
 } // namespace rivalry

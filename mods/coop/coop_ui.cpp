@@ -1165,10 +1165,11 @@ static void build_dialog()
     for (int i = 0; i < kSetRows; i++) {
         float y = 160.f + i * 27;
         char nm[16];
-        D.set_label[i] = add_label(G, {40, y + 1, 470, y + 25}, "", kWhite);
+        D.set_label[i] = add_label(G, {40, y + 1, 450, y + 25}, "", kWhite);
         snprintf(nm, sizeof nm, "set%d", i);
-        D.set_btn[i] = add_button(G, nm, {480, y, 590, y + 25}, "", [i] { do_set_click(i); });
-        D.set_tag[i] = add_label(G, {600, y + 1, 720, y + 25}, "", kDim);
+        // (BUG-9306: 140 wide, "Together" of the Rivals rows fits)
+        D.set_btn[i] = add_button(G, nm, {460, y, 600, y + 25}, "", [i] { do_set_click(i); });
+        D.set_tag[i] = add_label(G, {610, y + 1, 720, y + 25}, "", kDim);
         D.set_id[i] = -1;
     }
     D.set_line = add_label(G, {40, 514, 720, 538}, "", kDim);
@@ -1727,7 +1728,8 @@ static std::string value_label(int id, int v)
 {
     std::string val = settings::value_text(id, v);
     return val == "on" ? T("On", "Вкл") : val == "off" ? T("Off", "Выкл") : val == "own" ? T("Own", "Свои")
-           : val == "host" ? T("Host's", "Хоста") : val;
+           : val == "host" ? T("Host's", "Хоста") : val == "together" ? T("Together", "Вместе")
+           : val == "rivals" ? T("Rivals", "Соперники") : val;
 }
 
 // who may change setting `id` from this window now (settings_core.h can_set: a guest never, a session setting

@@ -21,6 +21,7 @@
 #include "dna_ledger.h"
 #include "dna_pace.h"
 #include "own_progress_logic.h"
+#include "rivals_logic.h"
 #include "start_choice_logic.h"
 #include "start_any_logic.h"
 #include "host_world.h"
@@ -795,7 +796,7 @@ static void test_settings()
     CHECK(parse_value(kCreatureMode, "host", v) && v == 1 && parse_value(kCreatureMode, "own", v) && v == 0);
     CHECK(parse_value(kCreatureMode, "on", v) && v == 1 && !parse_value(kCreatureMode, "hosts", v));
     CHECK(value_name(kCellRegen, 0).empty() && value_text(kCellRegen, 0) == "off");
-    for (int i = kNameTags; i < kCount; i++) // every row of step 3 but friendly fire and the creature mode is on by default
+    for (int i = kNameTags; i < kRivalsCell; i++) // every row of step 3 but friendly fire and the creature mode is on by default
         CHECK(kDefs[i].def == (i == kFriendlyFire || i == kCreatureMode || i == kCivOwnMoney ? 0 : i == kPlayerLimit ? 4 : i == kAutosave ? 2 : 1));
     // E2 (BUG-0864): the host's autosave: a choice of minutes, 10 by default, Live
     CHECK(kDefs[kAutosave].scope == Scope::Live && value_text(kAutosave, 2) == "10 min" && value_text(kAutosave, 0) == "off");
@@ -1319,8 +1320,8 @@ static void test_manifest()
     // types added after 0.7.14 (a 0.7.14 peer ignores them, B6): MSG_HOST_BUSY 70 (BUG-1142), MSG_TRIBE_ANIM 71 (C7,
     // BUG-1160), MSG_CELL_MATE 72 (BUG-1246), MSG_IDENTITY 73 (BUG-9258, the Lineages port), MSG_CIV_WALLET 74 (BUG-9259),
     // MSG_OWN_CARDS 75 (BUG-9263), MSG_PROGRESS 77 (BUG-9265), MSG_START_CHOICE 79 (BUG-9273), MSG_CREATURE_RESCUE 95
-    // (BUG-9283), MSG_START_ANY 110 (BUG-9293)
-    const std::set<int> added_types = {70, 71, 72, 73, 74, 75, 77, 79, 95, 110};
+    // (BUG-9283), MSG_START_ANY 110 (BUG-9293), MSG_RIVALS 111 (BUG-9306)
+    const std::set<int> added_types = {70, 71, 72, 73, 74, 75, 77, 79, 95, 110, 111};
     CHECK(known == (int)(sizeof golden0714::kTypes / sizeof golden0714::kTypes[0] + added_types.size()));
     CHECK(MSG_HOST_BUSY == 70 && msg_info(70).known && msg_dir(70) == MsgDir::Host &&
           host_world::msg_class(70) == host_world::MsgClass::Session && dispatch_route(70, false) == Route::HostBusy &&
@@ -1349,6 +1350,9 @@ static void test_manifest()
     CHECK(MSG_START_ANY == 110 && std::string(msg_info(110).name) == "START_ANY" && msg_info(110).family == Family::session &&
           msg_dir(110) == MsgDir::Any && host_world::msg_class(110) == host_world::MsgClass::Session &&
           dispatch_route(110, true) == Route::StartAny && dispatch_route(110, false) == Route::StartAny); // BUG-9293
+    CHECK(MSG_RIVALS == 111 && std::string(msg_info(111).name) == "RIVALS" && msg_info(111).family == Family::session &&
+          msg_dir(111) == MsgDir::Host && host_world::msg_class(111) == host_world::MsgClass::Session &&
+          dispatch_route(111, false) == Route::Rivals && dispatch_route(111, true) == Route::None); // BUG-9306
     CHECK(MSG_CREATURE_RESCUE == 95 && std::string(msg_info(95).name) == "CREATURE_RESCUE" &&
           msg_info(95).family == Family::creature && msg_dir(95) == MsgDir::Any &&
           host_world::msg_class(95) == host_world::MsgClass::Module && dispatch_route(95, true) == Route::CreatureRescue &&
@@ -1392,7 +1396,7 @@ static void test_manifest()
     CHECK(bad == 0);
     // the direction gate: exactly the types only the host sends (the sender inventory of the B3 review), off: none
     const std::set<int> host_only = {2, 3, 4, 5, 9, 13, 14, 15, 16, 17, 19, 20, 22, 23, 25, 29, 31, 33, 37, 39, 40, 42, 43, 47,
-                                     50, 56, 59, 62, 64, 66, 69, 70, 71};
+                                     50, 56, 59, 62, 64, 66, 69, 70, 71, 111}; // 111 MSG_RIVALS (BUG-9306)
     for (int t = 0; t < 256; t++) {
         CHECK(dir_gate_drops((uint8_t)t) == (host_only.count(t) == 1));
         CHECK(!dir_gate_drops((uint8_t)t, false));
@@ -1546,6 +1550,79 @@ static void test_compat()
     CHECK(families_text({{1, 1, 0}, {8, 2, 3}}) == "session 1.0, space 2.3" && families_text({}, false).find("none sent") == 0);
 }
 
+// BUG-9306: the stage table and the race of a Rivals stage (rivals_logic.h)
+static void test_rivals()
+{
+    printf("rivals: the stage table rows, the race (first wins, catch-up timer, everybody done), its wire (rivals_logic.h, BUG-9306)\n");
+    using namespace rivals;
+    CHECK(stage_of_mode(0x1654C00) == kCell && stage_of_mode(0x1654C01) == kCreature && stage_of_mode(0x1654C02) == kTribe &&
+          stage_of_mode(0x1654C04) == kCiv && stage_of_mode(0x1654C05) == kSpace && stage_of_mode(0x1654C06) == kNone);
+    CHECK(catch_up_seconds(3) == 300 && catch_up_seconds(0) == 60 && catch_up_seconds(9) == 300);
+    // the settings rows: Together by default, Live (the host may switch a stage in play), the timer's names
+    for (int id : {settings::kRivalsCell, settings::kRivalsCreature, settings::kRivalsTribe, settings::kRivalsCiv,
+                   settings::kRivalsSpace}) {
+        CHECK(settings::kDefs[id].def == 0 && settings::kDefs[id].scope == settings::Scope::Live &&
+              !strcmp(settings::kDefs[id].group, "Rivals"));
+        int v = -1;
+        CHECK(settings::parse_value(id, "rivals", v) && v == 1 && settings::value_text(id, 0) == "together");
+    }
+    CHECK(settings::value_text(settings::kRivalsCatchUp, 3) == "5 min");
+    CHECK(settings::kDefs[settings::kPackRescue].aid && settings::kDefs[settings::kCellKnockout].aid &&
+          !settings::kDefs[settings::kOwnProgress].aid && !settings::kDefs[settings::kRivalsCell].aid);
+    // the race: nobody wins alone
+    Race r;
+    std::vector<Racer> ps = {{0, false, 50}, {1, false, 20}};
+    CHECK(step(r, kCell, {{0, true, 100}}, 0, 60).empty() && r.winner == 0xFF);
+    // the first done wins and starts the timer
+    ps[1] = {1, true, 100};
+    auto ev = step(r, kCell, ps, 10, 60);
+    CHECK(ev.size() == 1 && ev[0].kind == kWon && ev[0].player == 1 && r.winner == 1 && !r.over);
+    CHECK(seconds_left(r, 10) == 60 && seconds_left(r, 40) == 30);
+    // nothing new: nothing happens
+    CHECK(step(r, kCell, ps, 20, 60).empty() && !r.over);
+    // the timer runs out
+    ev = step(r, kCell, ps, 70.5, 60);
+    CHECK(ev.size() == 1 && ev[0].kind == kOver && ev[0].player == 2 && r.over && r.why == 2 && seconds_left(r, 71) == 0);
+    // everybody done before the timer: over at once, the second placed
+    Race q;
+    step(q, kCreature, {{0, true, 100}, {1, false, 75}, {2, false, 0}}, 0, 300);
+    ev = step(q, kCreature, {{0, true, 100}, {1, true, 100}, {2, false, 0}}, 5, 300);
+    CHECK(ev.size() == 1 && ev[0].kind == kPlaced && ev[0].player == 1 && ev[0].place == 2 && !q.over);
+    ev = step(q, kCreature, {{0, true, 100}, {1, true, 100}, {2, true, 100}}, 6, 300);
+    CHECK(ev.size() == 2 && ev[1].kind == kOver && ev[1].player == 1 && q.over && q.why == 1 && q.order.size() == 3);
+    // a new stage starts a new race
+    step(q, kTribe, {{0, false, 0}, {1, false, 0}}, 7, 300);
+    CHECK(q.stage == kTribe && q.winner == 0xFF && !q.over && q.order.empty());
+    // the wire: what the guest reads is the host's race (the timer as seconds left)
+    net::Writer w;
+    write_race(w, r, 40);
+    Race g;
+    net::Reader rd(w.data.data(), w.data.size());
+    CHECK(read_race(rd, g, 1000) && g.stage == kCell && g.winner == 1 && g.over && g.why == 2 && g.order.size() == 1 &&
+          g.racers.size() == 2 && g.racers[1].done && seconds_left(g, 1000) == 0);
+    Race run;
+    step(run, kCell, {{0, false, 10}, {1, true, 100}}, 0, 300);
+    net::Writer w2;
+    write_race(w2, run, 100);
+    net::Reader rd2(w2.data.data(), w2.data.size());
+    CHECK(read_race(rd2, g, 50) && !g.over && seconds_left(g, 50) == 200 && g.racers[0].pct == 10);
+    for (size_t cut = 0; cut < w2.data.size(); cut++) { // cut short: nothing
+        net::Reader rc(w2.data.data(), cut);
+        Race x;
+        CHECK(!read_race(rc, x, 0));
+    }
+    // Tribe / Civilization: more than half of the NPCs; with none free left, the one with the most
+    std::vector<Racer> t = {{0}, {1}};
+    subjugation_done(t, {2, 3}, 5, 0);
+    CHECK(!t[0].done && t[1].done && t[1].pct == 100 && t[0].pct == 66);
+    subjugation_done(t, {2, 2}, 6, 2);
+    CHECK(!t[0].done && !t[1].done);
+    subjugation_done(t, {2, 2}, 6, 0);
+    CHECK(t[0].done && t[1].done);
+    subjugation_done(t, {0, 0}, 0, 0);
+    CHECK(!t[0].done && !t[1].done);
+}
+
 int main(int argc, char** argv)
 {
     g_nofix = argc > 1 && std::string(argv[1]) == "--nofix";
@@ -1553,6 +1630,7 @@ int main(int argc, char** argv)
     test_dna_route();
     test_dna_pace();
     test_own_progress();
+    test_rivals();
     test_start_choice();
     test_start_any();
     test_dna_ledger();

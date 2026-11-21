@@ -4953,3 +4953,14 @@ BUG-9283, the Lineages port of its creature knockout (PR #196: BUG-9118, BUG-914
   own creature did not show on the guest's game (pfind's layout); the line replaces them there.
 * ~ Not ported (Lineages had them): the progress debt instead of the DNA loss (BUG-9119), the revive ring (BUG-9141), the
   death pose (BUG-9156: the downed creature stands), the spectator camera, the adventure captain (BUG-9089).
+
+## A Rivals Creature race: the host's brain raised by steps, its DNA kept (2026-11-21, feat/rivals-stages)
+<a id="creature-rivals-race"></a>
+
+BUG-9306, [docs/11-rivals.md#rivals-stages-race](../11-rivals.md#rivals-stages-race). Lane A, Marona (Creature, brain 0).
+
+* ✔ (runtime) AddEvolutionPoints(150) followed by SetEvolutionPoints(the DNA before) every 3 s raised the host's brain
+  from 0 to 4 in 13 steps (the bar 0 -> 1950, the DNA stayed 0); each upgrade played its caption (its check at 993,
+  737). Then the evolve button (History, 993 748; its check 1006 742) started the vote "Player wants to move on to the
+  Tribe stage", the guest's I'm ready opened the host's stage-end editor.
+* ✔ (runtime) A guest's `coop.dna gain 3000` gives it brain 4 at once (the bar 3000) after its captions.

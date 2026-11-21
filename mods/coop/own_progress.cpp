@@ -1,5 +1,6 @@
 // Own progress in the Cell and Creature stages (own_progress.h, BUG-9265).
 #include "own_progress.h"
+#include "rivals.h"
 
 #include <windows.h>
 
@@ -52,7 +53,8 @@ bool active()
         return false;
     if (C.one_creature && C.one_creature())
         return false; // creature.mode host: one creature, one progress (the host's)
-    return settings::on(settings::kOwnProgress);
+    // BUG-9306: a Rivals Cell / Creature stage is a race of the players' own bars (on also with the setting off)
+    return settings::on(settings::kOwnProgress) || rivals::race_on(game::mode_id());
 }
 
 bool local_values(Values& out)
@@ -214,6 +216,24 @@ bool all_full(std::string* waiting)
         own_progress::all_full(others, m, waiting);
     }
     return all;
+}
+
+// BUG-9306: the stage may end now: Together, every player's bar is full; Rivals, the race is over (the first full bar
+// won and the catch-up timer ran out, or every bar is full). `waiting` says what is left.
+static bool end_ok(std::string* waiting)
+{
+    const uint32_t m = stage_now();
+    if (m && rivals::race_on(m))
+        return rivals::race_over(m, waiting);
+    return all_full(waiting);
+}
+
+bool table(std::vector<Player>& out)
+{
+    if (!active() || !is_host())
+        return false;
+    out = players_now();
+    return true;
 }
 
 // ---- host: the planet's records
@@ -409,6 +429,8 @@ static void guest_tick(double now)
 static void notice_tick(double now)
 {
     const uint32_t m = stage_now();
+    if (m && rivals::race_on(m))
+        return; // BUG-9306: a Rivals stage: the race tells (rivals.cpp)
     Values v;
     if (!m || !local_values(v) || (is_guest() && !g_synced)) {
         return; // (an editor, a load: nothing changes; the flags keep)
@@ -461,6 +483,8 @@ static int food_cap(int* low_level = nullptr, std::string* who = nullptr)
     if (!g_level_fix || !g_fix || !C.sess || !C.sess->connected() || !settings::on(settings::kOwnProgress) ||
         (C.one_creature && C.one_creature()) || game::mode_id() != modes::kCell)
         return INT_MAX;
+    if (rivals::race_on(modes::kCell))
+        return INT_MAX; // BUG-9306: a Rivals Cell stage is a race: every player grows at its own pace
     int low = INT_MAX;
     const uint8_t my = C.sess->my_id();
     auto note_named = [&](const std::string& name, int food) {
@@ -573,7 +597,25 @@ bool hold_stage_end(bool host)
         return false;
     const uint32_t m = game::mode_id();
     std::string waiting;
-    const bool all = all_full(&waiting);
+    const bool all = end_ok(&waiting);
+    if (rivals::race_on(m)) { // BUG-9306: a Rivals stage ends when its race is over
+        const char* next = m == modes::kCell ? "Creature" : "Tribe";
+        if (host) {
+            if (all)
+                return false;
+            g_holds++;
+            if (m == modes::kCell)
+                g_switch_due = true;
+            feed(std::string("Not yet: the race of this stage runs (") + waiting + "); everybody moves on to the " + next +
+                 " stage when it is over" + (m == modes::kCell ? ". Your click is kept: the vote starts by itself then."
+                                                                 : ". Then use the evolve button again (Esc closes History)."));
+            return true;
+        }
+        g_waits_told++;
+        feed(all ? "The race is over: " + name_of(0) + " (host) moves everybody on (a vote follows)"
+                 : "The race of this stage runs (" + waiting + "): " + name_of(0) + " (host) moves everybody on when it is over");
+        return true;
+    }
     if (host) {
         if (all)
             return false;
@@ -599,7 +641,7 @@ bool switch_resume_due()
 {
     if (!g_switch_due || !is_host() || game::mode_id() != modes::kCell || (C.vote_active && C.vote_active()))
         return false;
-    if (!all_full())
+    if (!end_ok(nullptr)) // BUG-9306: Rivals, the race over
         return false;
     g_switch_due = false;
     g_switch_resumed = true;

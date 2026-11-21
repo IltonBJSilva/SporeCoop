@@ -39,6 +39,7 @@
 #include "modes.h"
 #include "net/validate.h"
 #include "space_ext.h"
+#include "space_empires.h"
 #include "sporekit_game.hpp"
 #include "space_kept.h"
 #include "store.h"
@@ -114,6 +115,15 @@ static bool g_money_range_fix = true;
 COOP_FIX("space.money_range", "BUG-1110", g_money_range_fix,
          "space rivals: budgets outside the game's money range are ignored, the allies merge sum stays in range");
 static uint32_t g_money_refused;
+// BUG-9308: a guest with its own empire money (space_empires.cpp own_money, BUG-9279) keeps its own budget in both modes:
+// the switch to rivals split the host's money among every player (that guest's share was added to its own empire's money
+// as share - total: lost) and the merge added nothing back for it. Now such a guest is outside the split and the merge
+// (its budget stays its own). `coop.fix space.rivals_own_money off`: every player split and merged (0.7.15.96).
+static bool g_own_money_fix = true;
+COOP_FIX("space.rivals_own_money", "BUG-9308", g_own_money_fix,
+         "space rivals: a guest with its own empire money keeps it when the host switches between allies and rivals (no split, no merge)");
+static bool own_budget(uint8_t id) { return g_own_money_fix && id != 0 && spaceempires::own_empire_player(id); }
+static uint32_t g_own_skipped;
 static int g_fake_money;            // tests: the budget this guest reports instead of its money ...
 static double g_fake_money_until;   // ... until then
 static double g_hold_set_until; // tests: the host does not answer K_ASK until then (the window before K_SET)
@@ -344,7 +354,10 @@ static std::string host_apply(uint8_t action, uint8_t origin, uint8_t target)
             return "not in space";
         if (action == A_RIVALS) {
             // a fair split: total / players for everybody, the rest of the division for the host
-            int n = (int)std::max<size_t>(1, roster().size());
+            int n = 0;
+            for (auto& [id, nm] : roster())
+                n += !own_budget(id); // BUG-9308: a guest with its own empire money is not in the split
+            n = std::max(1, n);
             g_split_total = *m;
             g_split_share = *m / n;
             add_money(-(n - 1) * g_split_share);
@@ -365,6 +378,10 @@ static std::string host_apply(uint8_t action, uint8_t origin, uint8_t target)
             for (auto& [id, nm] : roster()) {
                 if (id == 0)
                     continue;
+                if (own_budget(id)) { // BUG-9308: its own budget stays its own
+                    g_own_skipped++;
+                    continue;
+                }
                 if (g_budget.count(id))
                     g_merge_credit_of[id] = g_budget[id];
                 else if (g_merge_known_fix) { // BUG-1029: no report yet: the kept budget, or 0 for a newcomer
@@ -480,6 +497,14 @@ static std::string request(uint8_t action, uint8_t target)
     return "";
 }
 
+// BUG-9306: the host's stage table (rivals.space, rivals.cpp) switches the mode as the Space page's button does
+std::string set_mode(bool on)
+{
+    if (!spaceext::feature_allowed("rivalry"))
+        return "the session setting \"Rivals mode allowed\" (space.rivals) is off";
+    return request(on ? A_RIVALS : A_ALLIES, 0);
+}
+
 // ---------------- everybody ----------------
 static void apply_pending_money()
 {
@@ -555,14 +580,14 @@ static void on_state(net::Reader& r)
     g_props = props;
     if (split != g_split_seen) {
         g_split_seen = split;
-        if (riv) { // keep what we earned or spent that the host had not counted yet
+        if (riv && !(g_own_money_fix && spaceempires::own_empire())) { // keep what we earned or spent that the host had not counted yet (BUG-9308: own empire money: no split)
             g_split_pending = true;
             g_split_delta = share - total;
         }
     }
     if (merge != g_merge_seen) {
         g_merge_seen = merge;
-        if (!riv) {
+        if (!riv && !(g_own_money_fix && spaceempires::own_empire())) { // BUG-9308: nor a merge
             g_merge_pending = true;
             g_merge_credit = have_credit ? credit : 0;
         }
@@ -692,6 +717,12 @@ static void on_message(uint8_t kind, uint8_t origin, net::Reader& r)
         int* m = money_ptr();
         if (to != me() || origin != 0 || !spaceext::rivals() || !m || g_win.known)
             break;
+        if (g_own_money_fix && spaceempires::own_empire()) { // BUG-9308: its own empire's money is its budget
+            g_win.known = true;
+            g_win.applied = spaceext::world_epoch();
+            g_own_skipped++;
+            break;
+        }
         if (have == 2) { // BUG-1029: new to this Rivals session
             if (v != *m)
                 add_money(v - *m);
@@ -897,7 +928,10 @@ static void tick(double now)
         g_win.applied = spaceext::world_epoch();
     if (spaceext::is_host())
         g_win.known = true;
-    else if (spaceext::rivals() && sp && !g_win.known && !g_split_pending && now - g_last_ask > 2.0) {
+    else if (spaceext::rivals() && sp && !g_win.known && g_own_money_fix && spaceempires::own_empire()) {
+        g_win.known = true; // BUG-9308: its own empire's money is its budget (nothing to ask the host for)
+        g_win.applied = spaceext::world_epoch();
+    } else if (spaceext::rivals() && sp && !g_win.known && !g_split_pending && now - g_last_ask > 2.0) {
         spaceext::send(K_ASK, net::Writer());
         g_last_ask = now;
     }
@@ -1064,10 +1098,10 @@ static std::string status()
     char b[400];
     snprintf(b, sizeof b,
              " hits_sent=%u hits_got=%u dmg_got=%.1f pvp_deaths=%u enemy_puppets=%u splits=%u merges=%u puppet_hits=%u"
-             " (last type %d by %s) restored=%u budget_kept=%u newcomers=%u merge_fix_skipped=%u money_refused=%u\n",
+             " (last type %d by %s) restored=%u budget_kept=%u newcomers=%u merge_fix_skipped=%u money_refused=%u own_skipped=%u\n",
              g_hits_sent, g_hits_got, g_dmg_got, g_pvp_deaths, g_enemy_puppets, g_splits, g_merges, g_puppet_hits,
              g_last_hit_type, g_last_hit_att == 1 ? "me" : g_last_hit_att == 2 ? "other" : "none", g_restored, g_budget_kept,
-             g_newcomers, g_merge_fix_skipped, g_money_refused);
+             g_newcomers, g_merge_fix_skipped, g_money_refused, g_own_skipped);
     char d[240]; // E1 (BUG-1152)
     snprintf(d, sizeof d, "  disk: fix=%d kept_rivals=%d world=%s kept_budgets=%u key_relations=%u read=%u mode_resumed=%u rel_resumed=%u\n",
              (int)g_disk_fix, (int)g_kept_rivals, g_state_world.empty() ? "-" : g_state_world.c_str(), (unsigned)g_store.size(),

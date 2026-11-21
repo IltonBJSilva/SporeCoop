@@ -2723,3 +2723,18 @@ BUG-9285 (the owner's test of the friends build 0.7.15.94: "many giants in the C
 * Now (cell.lineage_current): only player-species spawns are swapped, to a partner's current cell
   (creations::player_key); `coop.lineage` prints each player-model cell's level (+0x358) and the avatar's
   `food_level` (cell_logic::level_of_food(S+0x1C)) so a test can compare them.
+
+## A Rivals Cell race: the final level's caption, the host's bar filled (2026-11-21, feat/rivals-stages)
+<a id="cell-rivals-race"></a>
+
+BUG-9306, [docs/11-rivals.md#rivals-stages-race](../11-rivals.md#rivals-stages-race). Lane A (Windows, Steam build, two
+instances), Talviorus.
+
+* ✔ (runtime) A guest's food set to 1000 (`coop.pool meal 1000`) plays the final level's cinematic 801C8E0D with the
+  caption "Congratulations! You're on the path to sentience!" and its check (993, 737 on 1024x768). While it waits
+  for the check the guest's game reports nothing to the host (own_progress's guest_settled waits for every cinematic):
+  the race sees the guest done only after the player's check (the host saw Bob at 0 % until then).
+* ✔ (runtime) The host's food set to 1000 by `cellsync::set_food_total` (AddFoodPoints by the difference in the cell
+  step) at food 36: the game went to the last level (DNA 65, the bar full), the HUD button under the portrait (982,
+  748) opened History with the check (998, 745); its click started the vote (BUG-0315) and both games entered the
+  Creature stage (through the landfall editor: game.mode Editor, then Creature).

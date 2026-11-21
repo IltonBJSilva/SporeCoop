@@ -1,6 +1,8 @@
 # 11. Rivals: own bases in one world (design)
 
-Status: **design, not implemented** (decided with the project owner, 2026-10-25). Chapter 9 is
+Status: **design, partly built** (decided with the project owner, 2026-10-25; built since 2026-11-21: the stage
+table, the race of a Rivals stage with its catch-up timer, Space's rivals mode on the table:
+[rivals-stages-race](#rivals-stages-race)). Chapter 9 is
 the other session mode, "Together" (one team, one base). This chapter is the second mode,
 "Rivals": every player has a base, a species, a tribe, a nation and an empire of its own, all
 players live in the same world, everybody always sees where the others are, and every stage is a
@@ -369,3 +371,41 @@ docs/re/civ.md). Known starting points: the guest-to-host direction of creations
 6/7/8) for vehicles and buildings, and the key collision of buildings (BUG-0670). A tribe has one species in the game,
 so an own species per player needs RE first; it fits Rivals, where each player has a tribe of its own anyway.
 A player asked for it on Discord (2026-11-13).
+
+## The stage table and the race: Rivals per stage (2026-11-21, feat/rivals-stages)
+<a id="rivals-stages-race"></a>
+
+BUG-9306 (the owner's wish: Rivals in every stage, "Together" stays the default). Code: `mods/coop/rivals.{h,cpp}`, the
+rules and the wire `rivals_logic.h` (tests/validate_tests.cpp `test_rivals`); `coop.rivals`; switch
+`core.rivals_stages` (off: every stage reads Together, 0.7.15.96). What is built of 11.2 and 11.5, and what is not:
+
+* **The table** (11.2): the session settings `rivals.cell`, `rivals.creature`, `rivals.tribe`, `rivals.civ`,
+  `rivals.space` (`together` default, `rivals`) and `rivals.catch_up` (1, 2, 3, 5 (default) or 10 minutes), group
+  "Rivals" of the co-op window's settings page (F9 > Settings, last page). Live: the host changes a stage in play too;
+  kept with the host's world (the settings file of the world) and sent to the guests (MSG_SETTINGS), who see the table
+  greyed out. `coop.rivals set <stage> together|rivals` is the console form. No lobby presets ("All together", "All
+  rivals") and no base distance yet.
+* **Co-op aids off in a Rivals stage** (11.1: the co-op bonuses are no part of the Rivals): the settings marked `aid`
+  (cell.regen, cell.knockout, cell.respawn_small, creature.pack_rescue, creature.pack_heal, creature.joint_hunt,
+  tribe.pincer, tribe.chief_aura, tribe.duet, civ.joint_siege) read off while the stage played now is a Rivals stage of
+  a session with two or more players (`coop.settings` shows "(off: a Rivals stage)"); their values are kept.
+* **The race** (11.5, steps 1-5): the host checks every player's condition every second; the first done wins the stage
+  ("Bob wins the Cell stage! 5:00 left to catch up", a notice on every game), the catch-up timer runs (the status block
+  of every HUD: "Rivals, Cell: Bob won, 4:12 to catch up (Player 40%, Bob done)"; the lobby's world line); the others
+  who get done meanwhile are placed (2nd, 3rd); when the timer runs out or everybody is done the race is over and the
+  stage may end: the host's native end, then the existing vote (9.3) moves everybody on. MSG_RIVALS (111, session 1.8)
+  carries the race to the guests (seconds left, not a clock).
+  * Cell: own_progress's bars (food 1000). The host's held click on History's check (BUG-9265) goes on by itself when
+    the race is over. The level lock of BUG-9287 (nobody grows a Cell level alone) is off in a Rivals Cell stage.
+  * Creature: the brain level 4 (own_progress). The host's evolve button is refused while the race runs.
+  * The host's game is the one that changes stage, so when the race is over and the host's own condition is not met,
+    rivals.cpp meets it for the host's game: Cell: its food set to 1000 (cellsync::set_food_total); Creature: its bar
+    raised by AddEvolutionPoints in steps of 150 (each brain upgrade plays its caption) with the DNA put back
+    (SetEvolutionPoints): the host moves on with the DNA it had. Then the host's own end button shows.
+  * Tribe and Civilization: not yet (the next step of BUG-9306).
+  * Space: `rivals.space` is the Space rivals mode of space_rivalry.cpp: the host's game switches the mode when the
+    setting changes (in Space), and the setting follows the mode when the Space page's button (or a kept session,
+    BUG-1152) changes it. "Rivals mode allowed" (space.rivals) off: the setting cannot switch it.
+* **Not built** (11.3-11.7): player relations outside Space (alliance, war, PvP bites, raids, captures between
+  players), NPC relations per player and influence, the draft, the Chronicle, home protection, base distance, the Race
+  page (the status block and the lobby line show the race), emigration in Space, the finale bonus.

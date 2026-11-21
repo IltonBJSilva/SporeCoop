@@ -24,6 +24,7 @@ struct Ctx {
     std::function<bool()> playing;              // this game plays a world now (a stage with its own creature)
     std::function<std::string()> world_name;    // the save being played ("Name.spo")
     std::function<bool()> rivals;               // the Rivals mode is on (off_in_rivals settings read off)
+    std::function<bool()> stage_rivals;         // BUG-9306: the stage played now is a Rivals stage (aid settings read off)
     std::function<void(const std::string&)> feed;
 };
 

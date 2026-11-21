@@ -13,6 +13,10 @@ bool own_money();
 int own_seat();
 // host: player `player` has an empire of its own: its Space money is not the host's (shared.cpp drops its changes)
 bool own_money_player(uint8_t player);
+// BUG-9308: own_money / own_money_player in both rivalry modes (they read false in the rivals mode, where every budget is
+// the own one anyway): space_rivalry.cpp's split and merge leave such a player's money alone
+bool own_empire();
+bool own_empire_player(uint8_t player);
 
 } // namespace spaceempires
 
