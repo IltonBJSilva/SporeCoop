@@ -130,6 +130,11 @@ void tick(void* avatar, double now)
     game::set_health(avatar, std::fmin(mx, hp + kRegenPerSec * mx));
 }
 
+// BUG-9313: in a Rivals stage the pack aids read off (settings.cpp get, BUG-9306), but this line still said
+// "close (regen)" and "rescue ready". `coop.fix team.hud_aids off`: the line ignores the settings (0.7.15.97).
+static bool g_hud_aids = true;
+COOP_FIX("team.hud_aids", "BUG-9313", g_hud_aids, "creature: the Pack line shows regen / rescue only when those aids are on (off in a Rivals stage)");
+
 std::string status()
 {
     if (!g_on)
@@ -140,9 +145,12 @@ std::string status()
     double now = H->time_seconds();
     char b[200];
     int cd = (int)(kRescueCooldown - (now - g_last_rescue));
+    bool heal = !g_hud_aids || settings::on(settings::kPackHeal);
+    bool rescue = !g_hud_aids || settings::on(settings::kPackRescue);
+    std::string near = p.empty() ? "alone" : p + (d <= kRegenDist ? (heal ? " close (regen)" : " close") : " near");
+    std::string res = !rescue ? "off" : cd > 0 ? std::to_string(cd) + "s" : "ready";
     snprintf(b, sizeof b, "Pack: %s  |  rescue %s  |  joint hits %u, rescues %u  |  hits host %u, partners %u",
-             p.empty() ? "alone" : (p + (d <= kRegenDist ? " close (regen)" : " near")).c_str(),
-             cd > 0 ? (std::to_string(cd) + "s").c_str() : "ready", g_joint_hits, g_rescues, g_hits_host, g_hits_partners);
+             near.c_str(), res.c_str(), g_joint_hits, g_rescues, g_hits_host, g_hits_partners);
     return b;
 }
 
