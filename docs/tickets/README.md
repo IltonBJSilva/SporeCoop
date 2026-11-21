@@ -1301,3 +1301,4 @@ not-reproduced, game-bug (Spore itself), wontfix, duplicate.
 | [BUG-9282](BUG-9282-suite-py-adds-civ-own-money-twice-on-build-amigo.md) | fixed | tooling | Tools | 2026-11-20 | unreleased | suite.py adds civ_own_money twice on build/amigos |
 | [BUG-9289](BUG-9289-creature-a-guest-s-brain-upgrade-cinematic-that.md) | open | bug | Creature | 2026-11-20 |  | Creature: a guest's brain-upgrade cinematic that starts while the host's pause holds its game stays black (no caption); its own progress stops reaching the host until Esc |
 | [BUG-9280](BUG-9280-the-guest-s-first-creature-editor-starts-from-th.md) | fixed | bug | Creature | 2026-11-20 | unreleased | the guest's first Creature editor starts from the host's creature, not from the cell it chose (start choice) |
+| [BUG-9281](BUG-9281-coop-party-counts-errors-on-a-new-game-before-th.md) | fixed | bug | Cell | 2026-11-20 | unreleased | coop.party counts errors on a new game before the planet has a file |
