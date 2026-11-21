@@ -406,7 +406,51 @@ static void state_hook(State_t orig, uint8_t what, void* mgr, void* e1, void* e2
 static void SK_THISCALL h_War(void* m, void* a, void* b) { state_hook(o_War, W_WAR, m, a, b); }
 static void SK_THISCALL h_Ally(void* m, void* a, void* b) { state_hook(o_Ally, W_ALLY, m, a, b); }
 static void SK_THISCALL h_Peace(void* m, void* a, void* b) { state_hook(o_Peace, W_PEACE, m, a, b); }
-static void SK_THISCALL h_Break(void* m, void* a, void* b) { state_hook(o_Break, W_BREAK, m, a, b); }
+// BUG-9312: the game's attitude pass (0x1013370, from the per-tick empire update 0x1013650) breaks an alliance whose
+// relation is below a tuning threshold (BreakAlliance and its "Your alliance with ... has been severed." message
+// 0x4445D44). The allies mirror's relation is 0 (the mod sets the alliance flags and vectors, not the events): every time
+// the alliance was made again (the re-apply after each save) the next pass broke it, the message showed and the mirror
+// stayed unallied until the next save. The players' alliance is the mod's (allies set_relation, spaceext::relation): the
+// game never breaks it now: the attitude check skips the mirror (it runs every frame while the player is near the mirror's
+// stars, so dropping only the break would leave its other steps running each frame), and the BreakAlliance hook drops a
+// break of the mirror's alliance from any other caller. `coop.fix diplomacy.mirror_ally off`: both run (0.7.15.97).
+static bool g_mirror_ally_fix = true;
+COOP_FIX("diplomacy.mirror_ally", "BUG-9312", g_mirror_ally_fix,
+         "space: the game never breaks the alliance with a partner's empire (no \"alliance severed\" after each save)");
+static uint32_t g_mirror_breaks, g_mirror_breaks_blocked, g_mirror_attitude_skipped;
+using Attitude_t = void(SK_THISCALL*)(void*, void*, float);
+static Attitude_t o_Attitude;
+static void SK_THISCALL h_Attitude(void* self, void* npc, float dt)
+{
+    if (g_mirror_ally_fix && npc && spaceext::allies_mirror_pol(pol_of(npc))) {
+        g_mirror_attitude_skipped++;
+        return;
+    }
+    o_Attitude(self, npc, dt);
+}
+static void SK_THISCALL h_Break(void* m, void* a, void* b)
+{
+    void* me = my_empire();
+    void* other = b ? b : me;
+    if (me && a && other && (a == me) != (other == me)) {
+        uint32_t pol = pol_of(a == me ? other : a);
+        if (spaceext::allies_mirror_pol(pol)) {
+            g_mirror_breaks++;
+            bool say = g_mirror_breaks <= 3 || g_mirror_breaks % 100 == 0;
+            if (g_mirror_ally_fix) {
+                g_mirror_breaks_blocked++;
+                if (say)
+                    H->log(M, SK_INFO, "diplomacy: the game's break of the alliance with the partner's empire %08X kept "
+                           "out (caller %p, %u so far, BUG-9312)", pol, __builtin_return_address(0), g_mirror_breaks);
+                return;
+            }
+            if (say)
+                H->log(M, SK_INFO, "diplomacy: the game breaks the alliance with the partner's empire %08X (caller %p, "
+                       "%u so far, diplomacy.mirror_ally off)", pol, __builtin_return_address(0), g_mirror_breaks);
+        }
+    }
+    state_hook(o_Break, W_BREAK, m, a, b);
+}
 
 // first contact with an empire (arriving at its star, landing on its planet, ...)
 static void SK_THISCALL h_Contact(void* empire, int arg)
@@ -975,11 +1019,13 @@ static std::string status()
     char b[480];
     snprintf(b, sizeof b,
              "diplomacy: %s sent ev=%u state=%u contact=%u got ev=%u state=%u contact=%u snaps sent=%u got=%u fixed=%u"
-             " unknown=%u rivals_skipped=%u own_skipped=%u own=%d own_applied=%u kept_away=%u dropped_away=%u",
+             " unknown=%u rivals_skipped=%u own_skipped=%u own=%d own_applied=%u kept_away=%u dropped_away=%u"
+             " mirror_breaks=%u blocked=%u attitude_skipped=%u",
              a_ApplyEv && o_ApplyEv ? "on" : "no hooks", g_sent_ev, g_sent_state, g_sent_contact, g_got_ev, g_got_state,
              g_got_contact, g_snaps_sent,
              g_snaps_got, g_fixed, g_unknown, g_skipped_rivals, g_skipped_own, (int)own_empire_here(), g_own_applied,
-             (unsigned)(g_kept_away ? g_in.size() : 0), g_dropped_away);
+             (unsigned)(g_kept_away ? g_in.size() : 0), g_dropped_away, g_mirror_breaks, g_mirror_breaks_blocked,
+             g_mirror_attitude_skipped);
     return b;
 }
 
@@ -1078,6 +1124,14 @@ static std::string debug(const std::vector<std::string>& a)
             out += l + "\n";
         return out.empty() ? "empty\n" : out;
     }
+    if (a[0] == "rel" && a.size() > 1) { // the game's own relation and flags of (pol, my empire): tests (BUG-9312)
+        uint32_t pol = parse_pol(a[1]);
+        void* r = record(pol, my_pol());
+        snprintf(b, sizeof b, "rel pol=%08X record=%d flags=%u rel=%.2f mirror=%d breaks=%u blocked=%u attitude_skipped=%u\n", pol,
+                 (int)(r != nullptr), r ? F<uint32_t>(r, 4) & 3 : 0u, relation(pol), (int)spaceext::allies_mirror_pol(pol),
+                 g_mirror_breaks, g_mirror_breaks_blocked, g_mirror_attitude_skipped);
+        return b;
+    }
     if (a[0] == "mirrorfix" && a.size() > 1) { // BUG-0071: 0 = share the allies mirror's record (tests)
         g_mirror_fix = a[1] != "0";
         snprintf(b, sizeof b, "mirrorfix %d skipped=%u\n", (int)g_mirror_fix, g_mirror_skipped);
@@ -1157,6 +1211,8 @@ static bool init(const SkHost* h, SkMod* m)
         ok = H->hook_create(M, (void*)a_Contact, (void*)h_Contact, (void**)&o_Contact) == 0 && ok;
     if (a_Spoken && a_NounMgr)
         ok = H->hook_create(M, (void*)a_Spoken, (void*)h_Spoken, (void**)&o_Spoken) == 0 && ok;
+    if (uintptr_t att = S("SporeCoop::Empire_AttitudeCheck")) // BUG-9312 (optional: the BreakAlliance guard stays)
+        ok = H->hook_create(M, (void*)att, (void*)h_Attitude, (void**)&o_Attitude) == 0 && ok;
     return ok && o_ApplyEv && o_War && o_Ally && o_Peace && o_Break;
 }
 

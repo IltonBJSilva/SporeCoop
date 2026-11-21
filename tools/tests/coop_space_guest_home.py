@@ -15,7 +15,12 @@ space_empires.cpp, start_any.cpp, docs/re/space.md#space-guest-home).
 
   SPORE_LANE=4 python3 tools/tests/coop_space_guest_home.py
 
+5. After the host's saves its game still has the alliance with the guest's empire (BUG-9312: the game's flags, `coop.space
+   diplomacy rel <pol>`).
+
 SPORE_FIX_OFF=space.guest_home: no question, no empire for a guest without a species, no homeworld (FAIL at check 1 or 2).
+SPORE_FIX_OFF=diplomacy.mirror_ally: the game's attitude pass breaks the alliance made again after a save (check 5; seen
+in a reloaded world, not every first session: docs/re/space.md#space-mirror-ally-break).
 """
 import re
 import time
@@ -56,6 +61,24 @@ def main():
         print('  guest jump:', sp(guest, 'jumpto', star))
         ck(wait(lambda: 'picture_is_captain' in sp(guest, 'empires hud') and '=1' in sp(guest, 'empires hud').split(
             'picture_is_captain')[1], 60), 'guest: at its homeworld the HUD shows its own species (4)')
+    # 5 (BUG-9312): the host's saves undo the mirror and make it again; the game's attitude pass broke the alliance made
+    # again ("Your alliance with the Bob's empire has been severed."). The game's own flags of the pair stay allied.
+    # The pass checks the empires near the player: the host flies into a star system of the mirror first.
+    al = sp(host, 'allies list')
+    own = re.search(r'mirror .* pol=(8\w+) applied=1', al)
+    mst = re.search(r'^  star (\d+)', al, re.M)
+    if own and mst:
+        rel = lambda: host.call(f'coop.space diplomacy rel {own.group(1)}')['out']
+        print('  host jump:', sp(host, 'jumpto', mst.group(1)))
+        time.sleep(30)
+        ck('flags=2' in rel(), 'host: in a star system of the guest\'s empire the game keeps the alliance (5)')
+        for _ in range(2):
+            print('  host save:', host.call('coop.save')['out'].strip())
+            time.sleep(20)
+            print('  host:', rel().strip())
+        ck('flags=2' in rel(), 'host: after its saves the game keeps the alliance with the guest\'s empire (5)')
+    else:
+        ck(False, 'host: the guest\'s empire is mirrored (allies list) (5)')
     return ck.result()
 
 
