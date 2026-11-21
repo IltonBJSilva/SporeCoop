@@ -44,17 +44,6 @@ static bool g_save_fix = true;
 COOP_FIX("core.host_busy_save", "BUG-1217", g_save_fix,
          "core: the host's own save (a world share's, an autosave) is no stand its guests are told about or wait for");
 
-// BUG-9289: the guest's own cinematic (a brain upgrade's, with its caption) that started while this game waited for
-// the host's pause stayed black for good: no caption, input locked, still "paused" after the host went on, until Esc
-// skipped it; meanwhile the guest's own progress reached nobody (it reports outside cinematics). A cinematic of this
-// game is its own: the wait stands aside while one plays (none starts, a running one ends) and comes back after it.
-// Off: the wait holds the game's time through its cinematics (0.7.15.5).
-static bool g_cine_fix = true;
-COOP_FIX("core.host_busy_cinematic", "BUG-9289", g_cine_fix,
-         "core: a guest's game does not wait for the host's pause while a cinematic of its own plays (it ends black otherwise)");
-static uint32_t g_cine_steps; // waits that stood aside for a cinematic
-static busy_model::State g_cine_last_to = busy_model::State::None; // the host state of the last wait
-
 static busy_model::Announcer g_ann;
 static busy_model::HostView g_view;
 static busy_model::Edge g_edge;
@@ -183,6 +172,17 @@ static bool in_host_world()
     return g_mode == modes::kSpace ? !guest_space_other() : !guest_elsewhere();
 }
 
+// BUG-9289: the guest's own cinematic (a brain upgrade's, with its caption) that started while this game waited for
+// the host's pause stayed black for good: no caption, input locked, still "paused" after the host went on, until Esc
+// skipped it; meanwhile the guest's own progress reached nobody (it reports outside cinematics). A cinematic of this
+// game is its own: the wait stands aside while one plays (none starts, a running one ends) and comes back after it.
+// Off: the wait holds the game's time through its cinematics (0.7.15.5).
+static bool g_cine_fix = true;
+COOP_FIX("core.host_busy_cinematic", "BUG-9289", g_cine_fix,
+         "core: a guest's game does not wait for the host's pause while a cinematic of its own plays (it ends black otherwise)");
+static uint32_t g_cine_steps; // waits that stood aside for a cinematic
+static busy_model::State g_cine_last_to = busy_model::State::None; // the host state of the last wait
+
 static void guest_tick(double now)
 {
     bool guest = g_sess.role() == net::Role::Client && g_sess.connected();
@@ -257,20 +257,22 @@ void host_busy_message(uint8_t from, net::Reader& r)
 
 std::string host_busy_status()
 {
-    char b[360];
+    char b[320];
     snprintf(b, sizeof b,
              "host busy: fix=%d role=%s now=%s why=%04X told=%s sent=%u | view heard=%d host=%s why=%04X settled=%s rx=%u "
-             "dropped=%u | wait=%s waits=%u resumes=%u cine_steps=%u\n",
+             "dropped=%u | wait=%s waits=%u resumes=%u\n",
              (int)g_host_busy_fix, g_sess.role() == net::Role::Host ? "host" : "guest", busy_model::state_name(g_host_now.state),
              g_host_now.why, busy_model::state_name(g_ann.sent.state), g_sent, (int)g_view.heard,
              busy_model::state_name(g_view.last.state), g_view.last.why, busy_model::state_name(g_edge.to), g_rx, g_rx_dropped,
-             g_hold == Hold::None ? "none" : g_hold == Hold::Cell ? "cell" : "time", g_waits, g_resumes, g_cine_steps);
+             g_hold == Hold::None ? "none" : g_hold == Hold::Cell ? "cell" : "time", g_waits, g_resumes);
     if (g_hold != Hold::None) {
         size_t l = strlen(b);
         if (l > 0 && l + 40 < sizeof b)
             snprintf(b + l - 1, sizeof b - l + 1, " for %.0f s\n", H->time_seconds() - g_hold_since);
     }
-    return b;
+    char c[96]; // BUG-9289
+    snprintf(c, sizeof c, "host busy cinematic: fix=%d steps_aside=%u\n", (int)g_cine_fix, g_cine_steps);
+    return std::string(b) + c;
 }
 
 } // namespace coop_core
