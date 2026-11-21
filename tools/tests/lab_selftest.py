@@ -910,16 +910,28 @@ def mem_cases(tree, tmp):
     try:
         base = dict(warm=False, fixture=None, exclusive=False, minutes=1, reports=False)
         marker = f'labselftest_mem_{os.getpid()}'
-        big = dict(base, name='mem_big', cmd=f'{py} "import time; x = bytearray(400 << 20); time.sleep(30); '
+        # BUG-9298: the big script sleeps 120 s; killed, its run ends long before (bound 60 s, its own run only: the
+        # small run and a loaded machine's slow starts no longer count). Its killed python may need a moment to leave
+        # /proc on a loaded WSL: polled up to 10 s. Each condition is its own check, so a failure names its cause.
+        big = dict(base, name='mem_big', cmd=f'{py} "import time; x = bytearray(400 << 20); time.sleep(120); '
                                              f'print(\'RESULT: OK\')" {marker}')
         small = dict(base, name='mem_small', cmd=f'{py} "import time; time.sleep(1.5); print(\'RESULT: OK\')"')
         t0 = time.time()
         with contextlib.redirect_stdout(io.StringIO()):
             r = lab.run_one(big, LANE, tree, logdir, False)
+            took = time.time() - t0
             r2 = lab.run_one(small, LANE, tree, logdir, False)
+        left = leftovers(marker)
+        for _ in range(100):
+            if not left:
+                break
+            time.sleep(0.1)
+            left = leftovers(marker)
         line = next((x for x in r['fails'] if 'the test script used' in x), '')
-        check(not r['ok'] and line and time.time() - t0 < 25 and not leftovers(marker),
-              f'mem_script: a script of 400 MB over a 150 MB limit is killed and fails ({line[:90]})')
+        check(not r['ok'] and line, f'mem_script: a script of 400 MB over a 150 MB limit is killed and fails '
+                                    f'({line[:90] or r["fails"][:2]})')
+        check(took < 60, f'mem_script: the kill ends its run long before the script\'s own 120 s ({took:.1f} s)')
+        check(not left, f'mem_script: no process of the killed script is left ({left})')
         check(not r.get('harness'), 'mem_script: it is a failure, not harness trouble to retry')
         check(r2['ok'] and 0 < r2['mem'].get('script_rss_mb', 0) < 150,
               f'mem_script: a small script passes, its peak RSS in the result ({r2.get("mem")})')
