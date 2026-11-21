@@ -1,4 +1,5 @@
-// MSG_SPACE kinds 100..102 of space_empires.cpp (every player's own empire in Space, BUG-9279): payload structs, the
+// MSG_SPACE kinds 100..105 of space_empires.cpp (every player's own empire in Space, BUG-9279; 105 a partner's own
+// spaceship designed in Space, BUG-9299): payload structs, the
 // rules in wire/common.h. Every payload starts with {u8 to, u32 serial}.
 #pragma once
 
@@ -107,6 +108,31 @@ struct Part : Head {
         for (unsigned i = 0; i < n; i++)
             data[i] = r.u8();
         return r.ok();
+    }
+};
+
+// K_LAUNCH (guest -> host, BUG-9299): {to 0, serial (the K_EMPIRE it answers), u8 state, u32 ship, u32 captain}: my own
+// spaceship from Space (space_launch.cpp): state 1 offered, 2 my spaceship editor is open, 3 done (`ship` the design my
+// empire flies now, `captain` its captain), 4 not now. Another state is no message.
+enum : uint8_t { kLaunchOffered = 1, kLaunchEditor = 2, kLaunchDone = 3, kLaunchDeclined = 4 };
+struct Launch : Head {
+    uint8_t state = 0;
+    uint32_t ship = 0, captain = 0;
+    void write(net::Writer& w) const
+    {
+        Head::write(w);
+        w.u8(state);
+        w.u32(ship);
+        w.u32(captain);
+    }
+    bool read(net::Reader& r)
+    {
+        if (!Head::read(r))
+            return false;
+        state = r.u8();
+        ship = r.u32();
+        captain = r.u32();
+        return r.ok() && state >= kLaunchOffered && state <= kLaunchDeclined;
     }
 };
 

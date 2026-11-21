@@ -39,6 +39,7 @@
 #include "space_empires.h"
 #include "space_empires_logic.h"
 #include "space_ext.h"
+#include "space_launch.h"
 #include "space_map.h"
 #include "creations.h"
 #include "sui.h"
@@ -58,6 +59,7 @@ enum Kind : uint8_t {
     K_REPORT = 102,    // guest -> host {to 0, serial answered, money}: my own empire's money now
     K_DIPLO = 103,     // guest -> host {to 0, serial answered, part}: my own empire's diplomacy table (one part)
     K_DIPLO_SET = 104, // host -> guest {to, serial of its K_EMPIRE, part}: your table as I kept it (count 0: none)
+    K_LAUNCH = 105,    // guest -> host {to 0, serial answered, state, ship, captain}: my own spaceship (space_launch.cpp)
 };
 
 static const SkHost* H;
@@ -465,6 +467,12 @@ static void host_message(uint8_t kind, uint8_t origin, net::Reader& r)
         }
         g_n.diplo_in++;
         H->log(M, SK_INFO, "empires: seat %d's own diplomacy: %u empires", seat, (unsigned)t.size());
+        return;
+    }
+    if (kind == K_LAUNCH) { // BUG-9299
+        ew::Launch m;
+        if (m.read(r) && m.to == 0)
+            spacelaunch::host_message(origin, m);
     }
 }
 
@@ -852,14 +860,30 @@ static void guest_message(uint8_t kind, net::Reader& r)
 }
 
 // ---------------- wiring ----------------
+// BUG-9299: a new own ship design: the name, ship and captain are set again (name_undo puts the game's back first)
+void ship_changed()
+{
+    H->run_outside_frame([](void*) { name_undo(); }, nullptr); // (the setters change models: outside the frame)
+}
+
 static void tick(double now)
 {
     if (!active())
         return;
-    if (spaceext::is_host())
+    if (spaceext::is_host()) {
         host_tick(now);
-    else
-        guest_tick(now);
+        return;
+    }
+    // BUG-9299: the own launch from Space also runs in the editor it opens (guest_tick is Space only)
+    void* e = player_empire();
+    spacelaunch::Me me;
+    me.own = g_own && g_answered && g_answered == spaceext::world_epoch() && !own_world::space_other();
+    me.settled = me.own && g_renamed && g_renamed == e;
+    me.serial = g_answer;
+    me.ship = e ? key_at(e, kShipKey).i : 0;
+    me.captain = e ? key_at(e, kCaptainKey).i : 0;
+    spacelaunch::guest_tick(now, me);
+    guest_tick(now);
 }
 
 static void on_message(uint8_t kind, uint8_t origin, net::Reader& r)
@@ -890,6 +914,7 @@ static void on_session_end()
     g_diplo_last.clear();
     g_arch_applied = g_arch_epoch = 0;
     g_local_species = g_local_epoch = 0;
+    spacelaunch::on_session_end();
 }
 
 static std::string status()
@@ -911,7 +936,7 @@ static std::string status()
                  g_answered, spaceext::world_epoch(), g_g_asks, g_g_sets, g_g_reports, (int)g_diplo_ready, g_g_diplo_sets,
                  g_g_diplo_sent, player_empire() ? key_at(player_empire(), kShipKey).i : 0u,
                  player_empire() ? key_at(player_empire(), kCaptainKey).i : 0u, g_arch_applied, g_arch_sets, g_local_sets, g_local_why, g_panel_sets);
-    return b;
+    return std::string(b) + "\n" + spacelaunch::status();
 }
 
 static std::vector<spaceext::Row> rows()
@@ -919,6 +944,7 @@ static std::vector<spaceext::Row> rows()
     std::vector<spaceext::Row> out;
     if (!active())
         return out;
+    out = spacelaunch::rows(); // BUG-9299: the own spaceship's offer (guest), the partners' launches (host)
     if (!spaceext::is_host()) {
         if (g_own)
             out.push_back({spaceext::tr("Your own empire: your own money and diplomacy",
@@ -941,7 +967,9 @@ static std::vector<spaceext::Row> rows()
 
 static std::string debug(const std::vector<std::string>& a)
 {
-    // coop.space empires [money <n> | write | found <player> <species>]: tests
+    // coop.space empires [money <n> | write | found <player> <species> | launch ...]: tests
+    if (!a.empty() && a[0] == "launch") // BUG-9299: the own spaceship's offer
+        return spacelaunch::debug(std::vector<std::string>(a.begin() + 1, a.end()));
     if (a.size() >= 2 && a[0] == "money") {
         const int v = atoi(a[1].c_str());
         return set_money(v) ? "empires: my money set to " + std::to_string(v) : "empires: no player empire";

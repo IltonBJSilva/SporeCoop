@@ -50,6 +50,8 @@
 // Minor bump of feat/start-choice-any: session 1.7 (MSG_START_ANY 110, a new type older versions ignore: BUG-9293).
 // Minor bumps of feat/lineages-rescue: creature 1.2 (MSG_CREATURE_RESCUE, a new type older versions ignore: BUG-9283),
 // tribe 1.2 (MSG_TRIBE_ANIM kind K_RESCUE 22, a kind older versions drop: BUG-9278).
+// Minor bump of feat/space-late-launch: space 1.5 (MSG_SPACE kind 105 K_LAUNCH of space_empires, a partner's own
+// spaceship designed in Space, a kind older versions drop: BUG-9299).
 FAMILY(session,   1, 1, 7, STAGE_ALWAYS, "session", "net/protocol.h")
 FAMILY(world,     2, 1, 0, STAGE_ALWAYS, "world transfer", "")
 FAMILY(creature,  3, 1, 2, STAGE_CREATURE, "Creature", "")
@@ -57,7 +59,7 @@ FAMILY(npc,       4, 1, 1, STAGE_CREATURE | STAGE_TRIBE | STAGE_CIV, "mirrored c
 FAMILY(cell,      5, 1, 1, STAGE_CELL, "Cell", "")
 FAMILY(tribe,     6, 1, 2, STAGE_TRIBE, "Tribe", "wire/tribe_anim.h")
 FAMILY(civ,       7, 1, 1, STAGE_CIV | STAGE_SPACE, "Civilization", "")
-FAMILY(space,     8, 1, 4, STAGE_SPACE, "Space", "wire/common.h wire/space_core.h wire/space_map.h wire/space_contracts.h wire/space_diplomacy.h wire/space_finale.h wire/space_rivalry.h wire/space_allies.h wire/space_trade.h wire/space_planets.h wire/space_badges.h wire/space_eco.h wire/space_empires.h")
+FAMILY(space,     8, 1, 5, STAGE_SPACE, "Space", "wire/common.h wire/space_core.h wire/space_map.h wire/space_contracts.h wire/space_diplomacy.h wire/space_finale.h wire/space_rivalry.h wire/space_allies.h wire/space_trade.h wire/space_planets.h wire/space_badges.h wire/space_eco.h wire/space_empires.h")
 FAMILY(shared,    9, 1, 0, STAGE_TRIBE | STAGE_CIV | STAGE_SPACE, "shared resources", "wire/common.h wire/shared_res.h")
 FAMILY(creations, 10, 1, 1, STAGE_ALWAYS, "creations", "")
 

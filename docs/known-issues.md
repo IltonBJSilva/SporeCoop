@@ -477,3 +477,12 @@ anchor so other docs can link to it:
   reach the host meanwhile (the host waits for a partner whose bar is already full). Esc on the guest ends it.
 * Reproduce: Creature, host Esc and keep the menu open, guest `coop.dna gain 3000`, host closes the menu.
 * Ticket: BUG-9289
+
+## make test's unit-symbols fails on build/amigos-97 (2026-11-21, feat/space-late-launch)
+<a id="issue-triage-symbols-line"></a>
+
+* What happens: `tools/tests/triage_symbols_check.py` (unit-symbols of `make test`) names its planted fault
+  `sporekit_mod_main+0x40  mods/coop/coop.cpp` without a line number and fails 4 checks; the same on the base
+  build/amigos-97 with no change of feat/space-late-launch, while fix/civ-own-camera's build passes (the code layout).
+* Reproduce: a build/amigos-97 build in WSL, then `python3 tools/tests/triage_symbols_check.py build <llvm-mingw dir>`.
+* Ticket: BUG-9303.

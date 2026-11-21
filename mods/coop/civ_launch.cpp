@@ -179,6 +179,9 @@ void tick()
             g_phase = Phase::Space;
             g_launched++;
             H->log(M, SK_INFO, "civ launch: my game launched into Space with my own ship");
+            // BUG-9299: this planet's own ship is made: space_launch.cpp offers no other one here
+            if (const uint32_t w = modes::current_world())
+                creations::world_note_set("late_launch", w, "civ");
         } else if (mode == modes::kCiv && age > kCivWait)
             end("History not used");
         return;
@@ -199,6 +202,8 @@ void tick()
         return;
     }
 }
+
+bool running() { return g_phase != Phase::None; }
 
 bool holds_load()
 {

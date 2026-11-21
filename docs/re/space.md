@@ -3582,3 +3582,44 @@ BUG-9296, BUG-9297. Lane C, Steam exe 3010a413 (the GOG 2024 code), objdump of t
   `coop.space empires captain <hex>` (guest: the captain species, a creature of its own library).
 * Pitfalls: `coop.space takeoff` / `land` before a Space game existed crashed the game (BUG-9300, guarded now). A Space
   .spo copied alone into another profile crashes the load: its galaxy is in that profile's Game0 (BUG-9301).
+## A late partner's own spaceship from Space (2026-11-21, feat/space-late-launch)
+<a id="space-late-launch"></a>
+
+BUG-9299, after [space-own-empires](#space-own-empires) and docs/re/civ.md#civ-guest-launch. Lane A, Steam exe
+3010a413 (the GOG 2024 code), two games, dev1's Dopov (the host's Space save, the guest's seat 1 with species 7CA81684).
+* ✔ **The game's spaceship editor opens from Space** with a plain EditorRequest: GeneralAllocator::new_(0x9C) +
+  EditorRequest_ctor, editor +0xC = 0x96B24187 (the editor of the end of Civ), key +0x10..+0x18 = 0 (a new design),
+  then Editors::EditorRequest::Submit (past the co-op vote: `coop_core::g_vote_bypass`). The constructor already
+  leaves the return mode +0x1C = 0x01654C05 (Space, the mode it was built in) and the flags +0x34..+0x3D
+  `00 00 00 00 00 01 00 01 00 01` (+0x39, +0x3B, +0x3D = 1), +0x90 = 0. The editor came up within 3 s (mode 0x00DBDBA1
+  Editor) with the whole ship palette, the 10 000 budget, the red cross and the check mark.
+* ✔ **Its check mark returns to Space**, the same Space world (spaceext::world_epoch unchanged, the empire object the
+  same: the editor frames are kEditor only; this answers, for the ship editor, the "Not verified" of the world epoch in
+  [space-object-serial](#space-object-serial)), and the design is saved into the player's own library (EditorSaves): the
+  newest own UFO design (creations::options(kUfo)[0]) is the new one 3 s after the return. Nothing else of the Space
+  game changes (no second Space start, no "Lift off!", no captain dialog). Its **red cross** returns to Space too with no
+  new design.
+* ✔ `SporeCoop::Empire_SetSpacecraftKey` with the new design on the player's cEmpire (space_empires apply_ship, after a
+  name_undo so the game's own keys are put back first) changes the ship the player flies at once: the HUD's ship
+  portrait shows the new design.
+* ✔ **What the host sees**: the guest's game shares the design as its own creation (creations.cpp, MSG_CREATION): the
+  host's `coop.creations` lists "player 1 ufo: <the host's key> '<design name>'" within a second, and the guest's mirror
+  ship in the host's fleet (`coop.fleet list`, type 6 puppet) has that key as its model: on the host's screen the
+  partner's ship is the new design. The captain the host knows for the guest is "player 1 creature: 7CA81684" (the
+  seat's species: space_empires sets it as the guest's cEmpire +0xC4 captain).
+* The offer (space_launch.cpp, switch `space.late_launch`): a guest in the host's Space world with an empire of its own
+  (K_EMPIRE have 1, named and set) and no choice recorded for the planet in its worlds.ini ([late_launch] <world crc> =
+  "done <ship>" | "no" | "civ" after BUG-9295's own launch from Civ) gets a line and two rows on the co-op window's Space
+  page (Design / Not now); MSG_SPACE kind 105 K_LAUNCH tells the host each step (offered, editor, done with the ship
+  and captain, not now).
+* ✔ **The editor's first load can stand the game 30 s and more** (lane A, 2026-11-21, three other lanes' games running
+  on the same PC): one Design took 36 s, the main thread in the palette's texture jobs (`App::cJob::Wait` under
+  `Palettes::StandardItemUI::HandleUIMessage`, the sporekit watchdog's hang report), the same editor 3 s on a quiet PC.
+  A guest's game sends nothing meanwhile: the host dropped it at 30 s (BUG-9305). The guest now tells the host first
+  (K_LAUNCH state 2, flushed) and asks for the editor a second later; the host waits up to 180 s for its peers until
+  that guest tells another state (host_busy.cpp, `space.launch_long_wait`). ✔ with a 40 s `kit.test.hang` right after
+  Design: on, the guest stays in the session (the host's timeout 180000 ms while told) and its editor opens; off, the
+  host drops it.
+* Not done: a partner without a species of its own (no own seat species, it plays the host's empire) gets no offer: its
+  ship is the host empire's (space_empires gives such a player no empire). The guest's own captain's HUD portrait is
+  BUG-9296's.

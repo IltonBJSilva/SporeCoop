@@ -2350,6 +2350,8 @@ Civ fixture (the guest's adopted nation 000021D0, every other city taken by `coo
 * Not done: the guest's own planet-side start has the host's captain and money (the host's world, loaded after the
   first flight, then gets the guest's own captain and money from space_empires); Lineages' launch offer for a partner
   who joins while the host is already in Space (LaunchMessage, the retained Civ checkpoint) is not ported.
+  ~ (2026-11-21, feat/space-late-launch): such a partner now gets an offer of its own spaceship from Space (written
+  new, BUG-9299: the game's spaceship editor opens from Space): docs/re/space.md#space-late-launch.
 ## The Civ start's camera and a guest's own capital (2026-11-21, fix/civ-own-camera)
 <a id="civ-own-camera"></a>
 
