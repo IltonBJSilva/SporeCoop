@@ -10,7 +10,7 @@ role:
 versions: 0.7.15.96
 fixed_in: unreleased
 branch: fix/unit-symbols
-commits: 6f502d1c
+commits: 6f502d1c e73fc2ba
 tests: unit-symbols
 signature:
 docs: docs/06-testing.md#testing-unit-symbols-line0
