@@ -37,7 +37,7 @@ def main():
     a = ap.parse_args()
     n = a.instance
     subprocess.Popen([a.exe, f'-sporekit-instance:{n}', f'-sporekit-profile:{a.profile}'],
-                         cwd=os.path.dirname(a.exe))
+                     cwd=os.path.dirname(a.exe))
     time.sleep(6)
     boot = c(n, 'coop.space takeoff')
     t = time.time() + 240
