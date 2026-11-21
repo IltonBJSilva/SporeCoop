@@ -60,8 +60,19 @@ static bool g_own_fix = true;
 COOP_FIX("editors.guest_designs", "BUG-1158", g_own_fix,
          "tribe, civ: a guest's own outfitter and design editors are refused with a line (their result was the guest's alone and got lost)");
 
+// BUG-9304: a guest's game left Creature with its own creature as the game's player species (BUG-9262), so the player
+// tribe the game made at the Tribe entry had THAT creature's species profile (cSpeciesManager keeps one profile per key
+// for the whole process). The outfit below reloaded that profile with the host's species (key +0x504 the host's, the
+// model ours of it): from then on every lookup of the guest's own creature key gave the host's species on the guest's
+// game, also after a rejoin (only a restart cleared it): its own Tribe village and later its own Civ capital's citizens
+// were the host's creature there (the host's game was right). Now the outfit never loads into the profile of a
+// player's own creature. Off: loaded into whatever profile the player tribe has (0.7.15.96).
+static bool g_own_species_fix = true;
+COOP_FIX("tribe.outfit_own_species", "BUG-9304", g_own_species_fix,
+         "tribe: the host's outfit never overwrites the species profile of a player's own creature on a guest's game (its own village, its own nation's citizens)");
+
 // ---- counters (tests)
-static unsigned g_out_applied, g_out_failed, g_out_waits, g_out_restored, g_out_saves;
+static unsigned g_out_applied, g_out_failed, g_out_waits, g_out_restored, g_out_saves, g_out_own_kept;
 static unsigned g_civ_set, g_civ_own_back, g_veh_pending;
 static unsigned g_refused;
 static double g_told_at = -100;
@@ -87,6 +98,23 @@ static uint8_t* tribe_profile(void* t)
     return R(p, kProfGen + 4) ? p : nullptr;
 }
 static creations::Key key_at(const uint8_t* p) { return {F<uint32_t>((void*)p, 0), F<uint32_t>((void*)p, 4), F<uint32_t>((void*)p, 8)}; }
+
+// BUG-9304: the profile is the species profile of a player's own creature (any player of the session, this guest's
+// included): by the object, or by its key (+0x504) while it is still that creature's
+static bool own_creature_profile(const uint8_t* prof)
+{
+    if (!prof || !S)
+        return false;
+    const uint32_t key = F<uint32_t>((void*)prof, kProfKey);
+    for (auto& pl : S->players()) {
+        const creations::Key k = creations::player_key(pl.id, creations::kCreature);
+        if (!k.instance)
+            continue;
+        if (k.instance == key || creations::player_species(pl.id) == (void*)prof)
+            return true;
+    }
+    return false;
+}
 
 // guest: what was applied (the profile, the key of ours it plays, the host's raw keys for saves)
 struct Applied {
@@ -180,6 +208,10 @@ static void apply_outfit(void*)
     uintptr_t load = sym("SporeCoop::SpeciesProfile_Load"), size = sym("SporeCoop::cTribe_SpeciesSize");
     if (!prof || !load || !size)
         return;
+    if (g_own_species_fix && own_creature_profile(prof)) { // (outfit_sync checked it; the tribe may have changed since)
+        g_out_own_kept++;
+        return;
+    }
     creations::Key k = g_out.here;
     uint32_t key[3] = {k.instance, k.type, k.group};
     if (!thiscall<bool>(load, prof, (const uint32_t*)key)) {
@@ -218,6 +250,12 @@ int outfit_sync(const std::vector<Val>& want, bool apply)
     if (!prof)
         return 0;
     creations::Key cur = key_at(prof + kProfKey), model = key_at(prof + kProfModel);
+    if (g_own_species_fix && is_guest() && own_creature_profile(prof)) {
+        if (g_out_own_kept++ < 5)
+            H->log(M, SK_INFO, "designs: the player tribe's profile is the species of a player's own creature %08X: the host's "
+                   "outfit %08X is not loaded into it (BUG-9304)", cur.instance, hk.instance);
+        return 0; // (its own look: nothing to align)
+    }
     creations::Key here = creations::local_species(hk);
     // aligned: the host's species key, and the model built from the host's creation (ours when it was remapped; the
     // save hook puts the host's model key in place while a save is written)
@@ -456,14 +494,15 @@ bool outfit_texts(uint32_t mode, uint32_t editor) { return g_outfit_fix && mode 
 // =====================================================================================================
 std::string status()
 {
-    char b[400];
+    char b[460];
     uint8_t* p = tribe_profile(player_tribe());
     void* civ = player_civ();
     snprintf(b, sizeof b,
-             "designs: outfit fix=%d applied=%u failed=%u waits=%u saves=%u restored=%u here=%08X host=%08X | civ fix=%d "
+             "designs: outfit fix=%d applied=%u failed=%u waits=%u saves=%u restored=%u own_kept=%u (fix %d) here=%08X host=%08X | civ fix=%d "
              "set=%u own_back=%u veh_pending=%u designs=%zu | own editors fix=%d refused=%u\n"
              "tribe profile %p key=%08X/%08X/%08X model=%08X/%08X/%08X gen=%u\n",
-             (int)g_outfit_fix, g_out_applied, g_out_failed, g_out_waits, g_out_saves, g_out_restored, g_out.here.instance,
+             (int)g_outfit_fix, g_out_applied, g_out_failed, g_out_waits, g_out_saves, g_out_restored, g_out_own_kept,
+             (int)g_own_species_fix, g_out.here.instance,
              g_out.host.instance, (int)g_civ_fix, g_civ_set, g_civ_own_back, g_veh_pending,
              civ ? culture(civ).size() : (size_t)0, (int)g_own_fix, g_refused, (void*)p, p ? F<uint32_t>(p, kProfKey) : 0,
              p ? F<uint32_t>(p, kProfKey + 4) : 0, p ? F<uint32_t>(p, kProfKey + 8) : 0, p ? F<uint32_t>(p, kProfModel) : 0,

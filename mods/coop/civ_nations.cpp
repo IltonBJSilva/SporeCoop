@@ -993,6 +993,69 @@ std::string debug(const std::vector<std::string>& a)
         const int r = h_Capture(city, pol_of(n), a.size() > 4 ? atoi(a[4].c_str()) : 0, 1, 0, 1);
         return "capture -> " + std::to_string(r) + ", the city's nation now " + std::to_string(seat_of_faction(pol_of(city))) + "\n";
     }
+    if (a.size() >= 3 && a[1] == "rekey" && authority()) { // tests (BUG-9304): rekey <seat>: its nation's species = its player's creature now
+        static int s_seat;
+        s_seat = atoi(a[2].c_str());
+        H->run_outside_frame([](void*) {
+            const int seat = s_seat;
+            void* n = seat >= 1 && seat < (int)founders::kMaxSeats ? g_nation[seat] : nullptr;
+            const uint8_t player = n ? g_seat_player[seat] : 0xFF;
+            const creations::Key k = player < civ_seats::kAwaySeat ? creations::player_key(player, creations::kCreature) : creations::Key{};
+            std::string err;
+            if (!n || !k.instance || !authority() || !creations::archive_guest_model(player, g_planet, err)) {
+                H->log(M, SK_WARN, "civ nations: rekey of seat %d not done: %s", seat, err.c_str());
+                return;
+            }
+            founders::Roster next = g_roster;
+            next.entries[seat].species = k.instance;
+            if (!founders::record(g_planet, next, err, founders::Stage::Civilization)) {
+                H->log(M, SK_WARN, "civ nations: rekey of seat %d not recorded: %s", seat, err.c_str());
+                return;
+            }
+            g_roster = next;
+            F<creations::Key>(n, kNationSpecies) = {k.instance, kSpeciesType, kSpeciesGroup};
+            H->log(M, SK_INFO, "civ nations: rekey: nation %08X's species is %08X now (tests, BUG-9304)", pol_of(n), k.instance);
+            share();
+        }, nullptr);
+        return "queued\n";
+    }
+    if (a.size() >= 2 && a[1] == "species") { // BUG-9304: each nation's / city's species key, whether it resolves here
+        std::string out;
+        char b[200];
+        std::vector<void*> seen;
+        auto key_row = [&](const char* what, uint32_t pol, const creations::Key& k) {
+            void* prof = k.instance ? game::species_by_key({k.instance, k.type, k.group}) : nullptr;
+            snprintf(b, sizeof b, "%s pol=%08X key=%08X/%08X/%08X profile=%p known=%d\n", what, pol, k.instance, k.type, k.group,
+                     prof, k.instance ? (int)creations::key_known(k) : -1);
+            out += b;
+        };
+        for (void* city : all_cities()) {
+            void* n = F<void*>(city, kCityCiv);
+            if (n && std::find(seen.begin(), seen.end(), n) == seen.end()) {
+                seen.push_back(n);
+                key_row(n == player_civ() ? "nation(player)" : "nation", pol_of(n), F<creations::Key>(n, kNationSpecies));
+            }
+            key_row("  city", pol_of(city), F<creations::Key>(city, kCitySpecies));
+        }
+        struct Census {
+            std::vector<void*> cities;
+            std::map<std::pair<uint32_t, void*>, unsigned> groups;
+        } census{all_cities(), {}};
+        game::for_each_object([](void* obj, uint32_t noun, void* data) {
+            auto& cs = *static_cast<Census*>(data);
+            if (noun != 0x018EB4B7 || !game::listed(obj))
+                return true;
+            void* city = F<void*>(obj, 0x1010);
+            const bool known = std::find(cs.cities.begin(), cs.cities.end(), city) != cs.cities.end();
+            ++cs.groups[{known ? pol_of(city) : 0, game::species_profile(obj)}];
+            return true;
+        }, &census);
+        for (auto& [k, cnt] : census.groups) {
+            snprintf(b, sizeof b, "citizens city_pol=%08X profile=%p count=%u\n", k.first, k.second, cnt); // (compare with the rows above)
+            out += b;
+        }
+        return out.empty() ? "no city\n" : out;
+    }
     if (a.size() >= 2 && a[1] == "citizens") { // the live citizens by their city's nation and species (Lineages)
         struct Census {
             std::vector<void*> cities;

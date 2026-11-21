@@ -468,6 +468,9 @@ anchor so other docs can link to it:
   founded); the camera at the guest's capital on both games, `coop.civ nations citizens` (city_pol of the guest's
   nation: the guest species on the host, the host species on the guest). Screenshot pair E:\Repositorio\SporeCoop-wt\qa\civ_cit.png.
 * Ticket: BUG-9304.
+* Fixed on fix/civ-citizens (switch tribe.outfit_own_species): the host's outfit had overwritten the guest's own
+  creature's species profile at the guest's own Tribe entry (docs/re/tribe.md#tribe-outfit-own-species); a game
+  restart of the guest cleared it before. Moves to the archive with the release.
 
 ## Creature: a guest's brain cinematic under the host's pause stays black (2026-11-20, fix/campaign-qa)
 <a id="issue-guest-brain-cine-paused"></a>

@@ -4433,3 +4433,26 @@ BUG-9278, the Lineages port of its founder rescue (BUG-9118 / BUG-9135) and part
 * ~ Not ported (Lineages had them): the hut's own "village down" window (a lethal blow on a founder hut), the capture of an
   unrevived village by its attacker, the party wipe from the population event when every player village is empty
   (BUG-9147) and the red lost step on the goal bar (progress_debt). The downed villager stands (no lying pose).
+
+## The host's outfit and a guest's own creature's profile (2026-11-21, fix/civ-citizens)
+<a id="tribe-outfit-own-species"></a>
+
+BUG-9304. Switch `tribe.outfit_own_species` (designs.cpp; off: the 0.7.15.96 behaviour). Follows BUG-1156's outfit sync
+(docs/re/creations.md#creations-stage-designs) and BUG-9262 (creature.own_player_species).
+* ✔ (runtime, lane B) cSpeciesManager keeps one cSpeciesProfile object per key for the whole process: a profile loaded in
+  place (SporeCoop::SpeciesProfile_Load, +0x504 the key, +0x510 the model) is what every later lookup of its OLD key
+  gets, in every later world of that process (a world load, a leave and rejoin did not undo it; a restart did).
+* ✔ (runtime) On a guest whose game made the Creature -> Tribe change itself while its player species (+0xA4) was its
+  own creature K (BUG-9262), the new player tribe's profile (cTribe +0x18CC) was K's profile object, and the outfit sync
+  0.1 s later loaded the host's species into it ("the tribe wears the host's outfit 292AFAF6 (here 7DAA030D)"): `coop.creations
+  speciesof K` gave "key 292AFAF6" from then on. When the guest's game waited and loaded the host's Tribe world instead
+  (no own stage change), the player tribe had the host's species and K stayed its own.
+* ✔ (runtime) Consequences seen: in Civ the guest's capital (nation +0x268 = K) was peopled by the host's species on the
+  guest's game only (docs/re/civ.md#civ-qa-campaign); the guest's own Tribe village of K on its game too (inferred: the
+  same profile).
+* Now the outfit sync never loads into the profile of a session player's creature (by the object, or by its key
+  +0x504): `coop.designs` own_kept counts these; the host's tribe after the reload still gets the outfit ("the tribe
+  wears the host's outfit 292AFAF6 (here 7DD5C761)" after "the player tribe's profile is the species of a player's own
+  creature 7CCDE692: ... not loaded into it").
+* ? The guest's own in-place Creature -> Tribe still makes a player tribe of its own species for the ~20 s until the
+  host's world loads; not seen to matter.

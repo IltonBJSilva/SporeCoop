@@ -2399,7 +2399,7 @@ docs/06-testing.md#testing-campaign-qa).
   city's (military).
 * ~ The guest's capital (an economic city) gives economic vehicles only, so the guest's way to take a city is the buy;
   a military capture by a guest was not tried (no military city of its own).
-* ✗ BUG-9304: on the guest's own game its capital's 19 citizens were the host's species 292B8132 while the host's game
+* ✗ BUG-9304 (~ superseded (2026-11-21): the inferred cause below is wrong, see [civ-citizens-own-species](#civ-citizens-own-species)): on the guest's own game its capital's 19 citizens were the host's species 292B8132 while the host's game
   showed them as the guest's 7C8BEFA2 (`coop.civ nations citizens`, the camera at the capital on each game). Not a
   timing of the species key (still so after a rejoin) and not the player-nation path (still so with
   civ.nations_native off on the guest). Inferred: the key does not resolve to a species profile on the guest's game and
@@ -2407,3 +2407,19 @@ docs/06-testing.md#testing-campaign-qa).
   host's species keys to local ones (`coop.creations`: "host species 292B8132 = 7DAB30B6 here").
 * The camera (BUG-9294) moved to the guest's capital 0.1 s after "has their own nation now" and again after each world
   load (moves=5 after a reload).
+
+## A guest's capital peopled by the host's species: the cause (2026-11-21, fix/civ-citizens)
+<a id="civ-citizens-own-species"></a>
+
+BUG-9304, after [civ-qa-campaign](#civ-qa-campaign).
+* CORRECTION (2026-11-21, fix/civ-citizens): the inference in [civ-qa-campaign](#civ-qa-campaign) ("the key does not
+  resolve to a species profile on the guest's game, SetSpeciesProfile's null fallback gives the player species") is
+  wrong. ✔ (runtime) The nation's key resolved on the guest (`coop.civ nations species`: key 7CB0FA33, profile 285207E0,
+  known=1) and the capital's 19 citizens had exactly that profile; the profile object itself held the host's species
+  (+0x504 292B9714, +0x510 the guest's local key of the host's creation). It had been overwritten in Tribe by the outfit
+  sync, docs/re/tribe.md#tribe-outfit-own-species. Fixed by `tribe.outfit_own_species`.
+* ✔ (runtime) The citizens take the nation's profile pointer as it is (their species key field is the profile's
+  +0x504): `coop.civ nations citizens` (the key) and `coop.civ nations species` (the profile pointers) agree.
+* ✔ (runtime) A fresh guest process loading a Civ save with the guest's nation was always right (Calvanin Civ copy,
+  Homan after Tribe -> Civ in one process, a nation re-keyed to the guest's current creature with `coop.civ nations
+  rekey 1`, a new founding after `.duonations` was removed): the cause lives in the process, not in the save.
