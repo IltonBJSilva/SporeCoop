@@ -8,10 +8,10 @@ reported: 2026-11-21
 source: smoke of build/amigos-97 on lane C
 role: guest
 versions: 0.7.15.97
-fixed_in:
+fixed_in: unreleased
 branch: feat/space-guest-home
-commits:
-tests: space_guest_home (lab, not run in the lab yet); in game E:\Repositorio\SporeCoop-wt\sgh\t2.py
+commits: 29e9a1c7 1bda97d8
+tests: space_guest_home
 signature:
 docs: docs/re/space.md#space-guest-home
 related: BUG-9279, BUG-9293, BUG-9296, BUG-9299, BUG-9312
@@ -67,6 +67,8 @@ in the lab: no lab on this PC).
   sgh\on_guest_homesystem_pass.png, sgh\on_host_homesystem_pass.png); the late-launch offer; host save, both leave,
   the host loads the save again, the guest joins again: the same homeworld from the file (no new pick), the guest's
   colony again, the host's mirror again with its species. No crash report.
+no-fail-run: no lab on this PC; the FAIL / PASS pair is the in-game runs on lane A below (driver sgh\t2.py, the lab
+test space_guest_home is its port, not run in the lab yet).
 * OFF (`coop.fix space.guest_home off` on both): E:\Repositorio\SporeCoop-wt\sgh\t2_off.out: RESULT FAIL (the guest
   flies the host's empire, no homeworld), as 0.7.15.97.
 
