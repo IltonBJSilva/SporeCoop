@@ -289,6 +289,18 @@ std::wstring pick(const std::wstring& dir, const std::wstring& busy, const std::
     return g_match_fix ? any_coop : std::wstring();
 }
 
+bool received_slot(const std::wstring& slot, std::string* host)
+{
+    if (slot.empty())
+        return false;
+    std::string m = read_text(slot + L"\\sporecoop.txt");
+    if (m.find("host_slot") == std::string::npos)
+        return false;
+    if (host)
+        *host = marker_field(m, "host");
+    return true;
+}
+
 int tidy(const std::wstring& dir, const std::wstring& kept, const std::wstring& busy, const std::string& host,
          const std::string& planet)
 {

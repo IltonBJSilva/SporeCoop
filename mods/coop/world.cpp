@@ -1748,6 +1748,18 @@ std::string game_key_for_planet(const std::string& planet)
 
 std::string current_game_key() { return game_key_for_planet(modes::current_world_name()); }
 
+bool playing_received_world()
+{
+    static uint64_t at;
+    static bool received;
+    const uint64_t now = GetTickCount64();
+    if (at && now - at < 1000)
+        return received;
+    at = now;
+    received = slotfs::received_slot(current_db_dir(false));
+    return received;
+}
+
 static void (*g_slot_replaced)(const std::string&);
 void set_slot_replaced_hook(void (*fn)(const std::string& dir)) { g_slot_replaced = fn; }
 

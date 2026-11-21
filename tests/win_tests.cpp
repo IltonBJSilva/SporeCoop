@@ -361,6 +361,12 @@ static void test_slot_match()
     CHECK(wr(a2, world("Terra", "A3"), "Alice", "Terra", 3, err));
     CHECK(get(a + L"\\Terra.spo") == "A3");
     CHECK(!exists(a + L"\\Oldplanet.spo") || !slotfs::g_write_fix);
+    // BUG-9311: a received slot is told from one of the player's own (its marker names the host)
+    std::string host;
+    CHECK(slotfs::received_slot(a, &host) && host == "Alice");
+    std::wstring own = games + L"\\Game9";
+    put(own + L"\\Mine.spo", "my own planet");
+    CHECK(!slotfs::received_slot(own) && !slotfs::received_slot(L""));
 }
 
 static void test_slot_write_fails()

@@ -72,7 +72,25 @@ static bool guest() { return is_guest(); }
 // the nations live in the host's game also while it plays alone (no session): a partner's nation waits for its player,
 // it does not turn into an NPC nation (its AI, its money)
 static bool in_civ() { return g_ok && game::mode_id() == modes::kCiv; }
-static bool authority() { return in_civ() && !guest(); }
+// BUG-9311: a guest whose session ended (coop.leave, the host gone) is no guest any more but still plays its copy of
+// the host's world (the received slot): it founded seat 1's capital there, wrote a roster for it and saved it. The
+// nations belong to the world's owner: a received world (slot marker, world::playing_received_world) has none unless
+// this game hosts it. Off: every game that is not a guest (0.7.15.96).
+static bool g_received_fix = true;
+COOP_FIX("civ.nations_received_world", "BUG-9311", g_received_fix,
+         "civ: a game that plays a copy of another player's world (a received slot) runs no nation founding, alliance or team campaign unless it hosts");
+static unsigned g_received_held; // tests: the times a received world kept this game from the nations' work
+static bool authority()
+{
+    if (!in_civ() || guest())
+        return false;
+    if (g_received_fix && !host() && world::playing_received_world()) {
+        if (!g_received_held++)
+            H->log(M, SK_INFO, "civ nations: this game plays a copy of another player's world without a session: no founding here");
+        return false;
+    }
+    return true;
+}
 static void* nation_by(uint32_t pol) { return pol ? thiscall<void*>(a_CivByPol, nm(), pol) : nullptr; }
 static uint32_t home_pol()
 {
@@ -887,6 +905,9 @@ std::string status()
              g_won, g_owned_answers, g_cursor_lists, g_found.phase == Phase::Requested ? ("seat " + std::to_string(g_found.seat)).c_str() : "-",
              g_last.c_str());
     std::string out = b;
+    snprintf(b, sizeof b, "civ nations: received world %d (held %u, fix %d)\n", (int)world::playing_received_world(), g_received_held,
+             (int)g_received_fix); // tests (BUG-9311)
+    out += b;
     if (!in_civ())
         return out;
     { // BUG-9294: where the camera went; tests compare it with coop.view's viewer position

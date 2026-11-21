@@ -74,6 +74,10 @@ bool write_or_fallback(const std::wstring& games, std::wstring& slot, const std:
 int tidy(const std::wstring& games, const std::wstring& kept, const std::wstring& busy_lower, const std::string& host,
          const std::string& planet);
 
+// BUG-9311: `slot` (a GameN folder) holds a world received from another player (its marker names a host): a copy of
+// that host's world, not one of this player's own. `host` gets the host's name from the marker.
+bool received_slot(const std::wstring& slot, std::string* host = nullptr);
+
 // A save slot as the host shares it: every file under `root` (relative names with '/'), but not
 // skip_name (the co-op marker). A received world is refused over these limits (world.cpp), so the
 // host checks them too.
