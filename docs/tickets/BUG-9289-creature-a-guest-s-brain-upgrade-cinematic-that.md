@@ -46,10 +46,23 @@ paused); its caption never shows. Inferred: the brain cinematic's caption step n
 and the game's own pause under the caption ("paused" stays in busy) is then never lifted.
 
 ## Fix
-None yet.
+None. A candidate (fix/guest-cine-hold: the guest's wait for the host's pause stands aside while a cinematic of its own
+plays, `core.host_busy_cinematic`) was written and then dropped: the bug did not reproduce to test it against.
+
+Reproduction attempts (lane B, 2026-11-20/21, the integration build, the candidate switched off), none black:
+1. Orley, guest level 0, the host's Esc first, 4 s later the guest's gain 400: the cinematic only starts after the host
+   goes on; its caption ends it.
+2. The same with a gain of 3000 (level 2 -> 4): the same.
+3. Lagus (a new game), the guest's gain 1000, the host's Esc 1 s later: the host's pause was not told (no wait); the
+   cinematic ended with its caption.
+4. Gross (a new game), the host's History check, the guest's gain 3000, the host's Esc 0.5 s later: no level gained.
+5. The same with 2 s: the cinematic F6A4B1E4 played under the guest's wait (`wait=time ... for 19 s`); after the host
+   went on, the caption's check ended it normally (level 0 -> 4, the host saw the guest's bar full).
+Not reproduced: what else the first run had (the caption clicks and Enter of the test while the guest waited, the
+host's menu open for 6 minutes) is not known to matter. Left open with the known issue entry.
 
 ## Verification
-no-fail-run: open bug, no fix yet.
+no-fail-run: open bug, not reproduced (attempts above).
 
 ## History
 - 2026-11-20: opened.
