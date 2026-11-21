@@ -58,6 +58,14 @@ Reproduction attempts (lane B, 2026-11-20/21, the integration build, the candida
 4. Gross (a new game), the host's History check, the guest's gain 3000, the host's Esc 0.5 s later: no level gained.
 5. The same with 2 s: the cinematic F6A4B1E4 played under the guest's wait (`wait=time ... for 19 s`); after the host
    went on, the caption's check ended it normally (level 0 -> 4, the host saw the guest's bar full).
+6. (2026-11-21, fix/qa-campaign = build/amigos-97 0.7.15.96, Kylinmak, guest at level 4) the host's History, then Esc
+   (Options) held 6 minutes; the guest's gain 3000 at once; while it waited its test clicked the caption's check and
+   Enter every 3 s (as the first run did): the cinematic F6A4B1E4 played under the wait (`busy: cinematic,input_lock,
+   paused`, `wait=time` for 6 min) with its picture, not black; after the host went on, its caption showed and one
+   check ended it; the host saw the guest full (qa/b89a.out, b89a_*.png).
+7. (the same, Mirey, guest at level 0) the gain did nothing while the host's menu was open 6 minutes (no level, no
+   cinematic: as attempt 4); after the host went on the cinematic played, level 0 -> 4, its caption ended it
+   (qa/b89b.out). The lane B drivers: E:\Repositorio\SporeCoop-wt\qa9289.py.
 Not reproduced: what else the first run had (the caption clicks and Enter of the test while the guest waited, the
 host's menu open for 6 minutes) is not known to matter. Left open with the known issue entry.
 
@@ -66,3 +74,4 @@ no-fail-run: open bug, not reproduced (attempts above).
 
 ## History
 - 2026-11-20: opened.
+- 2026-11-21: attempts 6 and 7 on the friends build 0.7.15.96 (fix/qa-campaign): not reproduced.
