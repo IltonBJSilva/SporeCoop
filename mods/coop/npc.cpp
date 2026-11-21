@@ -10,6 +10,7 @@
 #include "home_nests.h"
 #include "nest.h"
 #include "party.h"
+#include "difficulty.h"
 
 #include <algorithm>
 #include <cmath>
@@ -518,6 +519,7 @@ static bool g_party_peace_fix = true;
 COOP_FIX("creature.party_species_peace", "BUG-9262", g_party_peace_fix,
          "creature: no player hunts a party species (a partner's own nest family), also while its player is offline");
 static uint32_t g_party_hits_kept = 0;
+static bool wild_animal(void* a, void* av); // BUG-0870 (below, at damage_filter)
 static bool party_peace(void* npc, bool by_player, uint8_t from)
 {
     if (!g_party_peace_fix || !by_player || !home_nests::enabled() || !game::in_creature_stage() ||
@@ -3404,6 +3406,8 @@ void on_message(uint8_t type, uint8_t from, net::Reader& r)
         // BUG-0805: the guest's puppet as the attacker only while it is a live creature here (TakeDamage relays it)
         void* attacker = g_handler_live_fix && C.puppet_live ? C.puppet_live(from) : C.puppet_of(from);
         float dmg = teamplay::on_player_hit(npc, from, net::sane_damage(q.damage, kMaxHit));
+        if (wild_animal(npc, game::avatar()))
+            dmg = difficulty::on_hit_enemy(dmg); // BUG-0870: the enemy's health, as hits
         // kill credit: the game pays DNA, goal progress and the kill popup only for a kill by the
         // player's own avatar (TakeDamage 0xC07A78: attacker spatial vt 0x58, docs/re/creature.md 2).
         // A guest's puppet is not it, so a guest's kill paid nothing. The pack shares its progress:
@@ -3468,6 +3472,17 @@ void on_message(uint8_t type, uint8_t from, net::Reader& r)
     }
 }
 
+// BUG-0870 (all.difficulty): a wild animal of the Creature stage (not a player, not the host's pack or family, not a
+// vehicle / UFO / building): its hits on the players and the players' hits on it are scaled by the party's size
+static bool wild_animal(void* a, void* av)
+{
+    if (!a || a == av || !game::in_creature_stage() || game::is_puppet(a))
+        return false;
+    if (game::attacker_owner_fix() && !game::creature_listed(a))
+        return false;
+    return !creature_hp::host_party(a);
+}
+
 bool damage_filter(void* c, float& damage, int type, void* attacker)
 {
     if (!g_enabled || !C.sess || !C.sess->connected())
@@ -3517,6 +3532,8 @@ bool damage_filter(void* c, float& damage, int type, void* attacker)
         if (game::mode_id() == modes::kTribe)
             tribe::note_animal_hit(c, attacker);
         if (c == av) {
+            if (wild_animal(attacker, av))
+                damage = difficulty::on_hit_player(damage); // BUG-0870
             damage = teamplay::on_own_damage(av, damage);
             log_hit(0, attacker, damage, "");
             return true;
@@ -3526,8 +3543,11 @@ bool damage_filter(void* c, float& damage, int type, void* attacker)
             // while their player is offline (their nest's family). Species outside the party keep the game's rules.
             if (party_peace(c, attacker == av || (attacker && game::is_puppet(attacker)), 0))
                 return false;
-            if (attacker == av)
+            if (attacker == av) {
                 damage = teamplay::on_player_hit(c, 0, damage);
+                if (wild_animal(c, av))
+                    damage = difficulty::on_hit_enemy(damage); // BUG-0870: the enemy's health, as hits
+            }
             return true;
         }
         // a guest's puppet was hit: forward real NPC hits to that guest
@@ -3555,7 +3575,7 @@ bool damage_filter(void* c, float& damage, int type, void* attacker)
             if (pvp || (attacker && attacker != av && !game::is_puppet(attacker))) {
                 net::Damage d;
                 d.player = p.id;
-                d.damage = damage;
+                d.damage = !pvp && wild_animal(att_creature, av) ? difficulty::on_hit_player(damage) : damage; // BUG-0870
                 d.type = type;
                 HostNpc* it = hn_of(attacker);
                 d.attacker = it ? it->id : 0xFFFF;
@@ -3876,6 +3896,20 @@ std::string herds(bool all)
 
 static bool g_test_hit = false;
 bool test_hit_now() { return g_test_hit; }
+
+// tests (BUG-0870): host: the host's NPC #id hits player `player`'s creature (0: the host's avatar, else that guest's
+// puppet) through the game's TakeDamage, as an animal's bite does (the damage filter scales and forwards it)
+bool debug_npc_hits(uint16_t id, uint8_t player, float damage)
+{
+    if (!is_host() || !C.sess)
+        return false;
+    void* npc = hn_obj(id);
+    void* target = player == 0 ? game::avatar() : C.puppet_of ? C.puppet_of(player) : nullptr;
+    if (!npc || !g_seen_now.count(npc) || !target)
+        return false;
+    game::hit(target, damage, 0, npc);
+    return true;
+}
 
 bool debug_hit(uint16_t id, float damage)
 {

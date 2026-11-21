@@ -14,6 +14,7 @@
 #include "cellsync.h"
 #include "civ_wallet.h"
 #include "coop_state.h"
+#include "difficulty.h"
 #include "net/compat.h"
 #include "net/kick.h"
 #include "net/manifest.h"
@@ -780,6 +781,11 @@ int c_npc(void*, int argc, const char* const* argv, SkOut* out)
         SAY(ok ? "joined the pack" : "no such npc or it cannot join");
         return ok ? 0 : 1;
     }
+    if (argc > 4 && !strcmp(argv[1], "npchit")) { // tests (BUG-0870), host: NPC #id hits player <p> (0: the host)
+        bool ok = npc::debug_npc_hits((uint16_t)atoi(argv[2]), (uint8_t)atoi(argv[3]), (float)atof(argv[4]));
+        SAY(ok ? "npc hit applied" : "no such npc or player");
+        return ok ? 0 : 1;
+    }
     if (argc > 3 && !strcmp(argv[1], "hit")) {
         bool ok = npc::debug_hit((uint16_t)atoi(argv[2]), (float)atof(argv[3]));
         SAY(ok ? "hit sent through the damage filter" : "no such spawned proxy (a guest) or NPC (the host)");
@@ -1261,6 +1267,9 @@ void register_commands_core()
                        return rc;
                    },
                    nullptr, MT);
+    H->command_add(M, "coop.difficulty",
+                   "coop.difficulty [players <n> | reset] - difficulty scaling by party size (all.difficulty, BUG-0870): the values in force and what was scaled; players <n>: tests, the party size (0: the session's)",
+                   difficulty::command, nullptr, SK_CMD_MAIN_THREAD);
     H->command_add(M, "coop.lineage",
                    "coop.lineage [share <percent>] - Lineages cells (BUG-9275): the host's player cells for its Cell pool, the swaps, the live cells by model, a guest's remapped cells",
                    [](void*, int argc, const char* const* argv, SkOut* out) {

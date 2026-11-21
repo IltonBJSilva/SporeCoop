@@ -4953,3 +4953,68 @@ BUG-9283, the Lineages port of its creature knockout (PR #196: BUG-9118, BUG-914
   own creature did not show on the guest's game (pfind's layout); the line replaces them there.
 * ~ Not ported (Lineages had them): the progress debt instead of the DNA loss (BUG-9119), the revive ring (BUG-9141), the
   death pose (BUG-9156: the downed creature stands), the spectator camera, the adventure captain (BUG-9089).
+
+## Difficulty scaling by party size (2026-11-21, feat/difficulty-scaling)
+<a id="creature-difficulty-scaling"></a>
+
+BUG-0870, the port of Lineages' Difficulty Scaling (PR #196: founders::CampaignRules, its BUG-9100 model 1 numbers).
+Code: `mods/coop/difficulty.{h,cpp}`, rules `difficulty_logic.h` (tests/validate_tests.cpp `test_difficulty`); the
+session setting `all.difficulty` (All stages, Live, default off; named values off, 50 %, 100 %, 150 %, 200 %, 300 %,
+400 %; coop.ini [coop] `difficulty` = the index for a new world). `coop.difficulty [players <n> | reset]` prints the
+values in force, the own avatar's health / max / hunger and what was scaled; `coop.fix all.difficulty off` is the
+twin.
+
+* Per player over one, times the setting's percent, rounded once over all players: enemy health +15 %, enemy damage
+  +5 %, hunger +2.5 %, city capture effort +5 %, stage progress +60 %. Two players at 100 %: 115 / 105 / 1.025 / 105 /
+  160 %; four at 400 %: 280 / 160 / 1.3 / 160 / 820 %. The players are the session's now (`Session::players()`, the
+  host counted; Lineages used the campaign's reserved seats and moved Space to the party present in its BUG-9199).
+  The setting reaches the guests by name in MSG_SETTINGS: no new message, no session minor.
+* Differences from Lineages, on purpose: no extra creatures (Lineages added a Cell predator per group from three seats
+  and one Space raider per seat; BUG-9292 showed the lag comes from more cells); enemy health is the players' damage
+  to an enemy divided by the health percent (the same number of hits as a longer bar) instead of a bigger max health,
+  so nothing is converted before a save (Lineages' before_native_save / after_native_save) and nothing new goes on
+  the wire (its NF_SCALED_HP); stage progress only where the party's gains count whole in one total
+  (all.own_progress off and all.dna_pace off): own progress and the single-player pace already give each player a solo
+  game's pace, a second scaling would count the party twice. Not ported: Tribe (Lineages scaled the citizens of the
+  non-founder villages it knew from its reserved founders), Cell enemies (its byte health and MSG_CELL_COMBAT),
+  Civ's buy price (BuyProgress, not hooked here) and military AI interval / fleet cap, the rival targets.
+* Where it acts (each hit is scaled once, on the machine whose game decides it):
+  * Creature, host, `npc.cpp damage_filter`: a wild animal (`wild_animal`: listed creature, not a puppet, not the
+    host's pack or family) hitting the host's avatar, or a guest's puppet (the forwarded MSG_DAMAGE carries the
+    scaled damage); the host's own hit on a wild animal; a guest's hit (MSG_DAMAGE_REQ, applied with apply_damage
+    which bypasses the filter: scaled before the kill check, so the kill credit sees the real amount).
+  * Creature, every machine: the own avatar's hunger. Creature_HungerUpdate 0xC0D5A0 writes the falling meter through
+    Creature_SetHunger 0xC0BB30 from 0xC0D66C; the hook scales only the call returning to 0xC0D671
+    (`SporeCoop::CreatureHungerUpdateReturn`) for the own avatar: a meal or another write is untouched.
+  * Civilization, host, `civ.cpp h_AddCapture`: a player's capture damage (g_hit_by a player) divided by the
+    takeover percent, after the joint-siege bonus.
+  * Space, `squadron.cpp h_TakeDamage`: a hit on the own ship whose attacker is not a player's ship (puppet_owner <
+    0); a guest's MSG_UFO_DAMAGE comes through the same hook (g_applying) and the host never scales a hit it forwards
+    (only the own ship), so it is scaled once.
+* ✔ (runtime, lane D 2026-11-21, Steam build, Creature save Etheis, two instances, a manual driver with `coop.npc
+  hit`, `coop.npc npchit` and `coop.difficulty`; creature.pack_heal off during it, the partner's healing refilled the
+  bites) Off: the host's hit of 3 took 3.00 of a wild animal's health on the
+  host and the guest's proxy showed the same; the guest's hit of 3 took 3.00 on the host's game; an animal's bite of
+  3 (`coop.npc npchit <id> <player> <dmg>`, the game's TakeDamage with the animal as attacker) took 3.00 of the guest's
+  own creature on the guest's game and 3.00 of the host's. At 400 % with two players: 1.88 (= 3 / 1.6) for both
+  players' hits, the guest's proxy the same; bites 3.60 (= 3 x 1.2) on both games, three bites each. Twin
+  (`coop.fix all.difficulty off` with the setting at 400 %): 3.00 everywhere, the test FAILs as it should.
+* ✔ (runtime) `CreatureHungerUpdateReturn` is right: with the setting at 400 % the hook saw 1155 writes on the host and
+  1003 on the guest, the game's own drops 15.17 -> 16.68 and 14.41 -> 15.85 (x 1.0995). The wall-clock rate of the
+  meter is too noisy to compare (0.33 /s, then 0.17 /s with no change: the frame time and the meal delay), so the
+  test reads the game's values the hook gets and writes.
+* ✔ (runtime, Kealeneon, Civ) `coop.civ siege <city> 1 3` (three capture hits of 10 by player 1 through the game's
+  AddCaptureDamage): the city's meter +0x748 0 -> 3.00 off, 0 -> 2.50 at 400 % (x 1.2); the guest's game showed 3 and
+  2 (its list prints whole numbers). The meter falls back to 0 within about a second when no hit follows.
+* ✔ (runtime) The settings page shows the row under All stages ("Difficulty scaling by party size", live); a click on
+  the host cycles off -> 50 % -> ... -> 400 % -> off, and the guest's game shows the host's value with the notice "The
+  host set Difficulty scaling by party size: 150 %".
+* ✔ (runtime, Dopov, Space) `coop.fleet hurt <ship> 1 100` (an NPC ship the host spawned hits the guest's puppet: the
+  game's TakeDamage on the host, MSG_UFO_DAMAGE, the guest's own ship): the guest's ship lost 100 per hit off and 120
+  at 400 % (1500 -> 1400 -> 1300, 1300 -> 1180 -> 1060; the guest's HUD showed 1,060); the host counted no scaled hit
+  (it forwards the hit unscaled).
+* ✔ (runtime, Socle, Cell, all.own_progress and all.dna_pace off) `coop.pool meal` 10 + 10 + 10 + 4 on the host: the
+  party's food 550 -> 560 at 400 % (34 x 100 / 340 = 10, the remainder carried) and 560 -> 594 off; the guest's game
+  showed the same totals.
+* ~ Not seen in a fight: an NPC's real bite in play (the counters showed 20 bites of 0.5 scaled to 0.6 on the host
+  after a test hit had made animal #66 hostile, which is the same path).

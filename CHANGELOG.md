@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Difficulty scaling by party size (Co-op settings, All stages, off by default, up to 400 %): with more players the
+  wild animals take more hits and bite harder, the own creature gets hungry faster, cities need more capture effort
+  and NPC ships hit harder in Space; no extra creatures are made (BUG-0870).
+
 ## [0.7.15.5] - 2026-11-19
 
 A fix for players who could not leave the Tribe stage: the City Hall editor at its end could not be named after a

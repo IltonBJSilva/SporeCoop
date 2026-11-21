@@ -25,6 +25,7 @@
 #include "fixes.h"
 #include "creations.h"
 #include "savestrip.h"
+#include "difficulty.h"
 
 using skg::thiscall;
 using skg::vcall;
@@ -267,6 +268,11 @@ using TakeDamage_t = int(SK_THISCALL*)(void*, float, uint32_t, int, const float*
 static TakeDamage_t o_TakeDamage;
 static int SK_THISCALL h_TakeDamage(void* combat, float dmg, uint32_t pol, int type, const float* dir, void* attacker)
 {
+    // BUG-0870 (all.difficulty): an NPC ship's or turret's hit on our own ship (a guest: also the host's MSG_UFO_DAMAGE,
+    // which comes through here); never a player's ship (a puppet), never twice (the host does not scale a hit it forwards)
+    if (in_space() && dmg > 0 && attacker && C.sess && C.sess->connected() && (uint8_t*)combat - kCombat == player_ufo() &&
+        !(C.puppet_owner && C.puppet_owner((uint8_t*)attacker - kCombat) >= 0))
+        dmg = difficulty::on_space_hit(dmg);
     if (in_space() && (uint8_t*)combat - kCombat == player_ufo()) // rescue: a lethal hit may only disable us
         dmg = spacecoop::filter_own_damage((uint8_t*)combat - kCombat, dmg, type);
     if (!in_space() || g_applying || !C.sess || !C.sess->connected())

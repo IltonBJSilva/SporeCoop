@@ -73,6 +73,7 @@
 #include "start_any.h"
 #include "start_choice.h"
 #include "lineage_cells.h"
+#include "difficulty.h"
 #include "creature_rescue.h"
 #include "world.h"
 #include "find.h"
@@ -2535,6 +2536,7 @@ static void init_world_share()
     start_choice::init(H, M, &g_sess); // BUG-9273
     start_any::init(H, M, &g_sess);    // BUG-9293
     lineage_cells::init(H, M, &g_sess); // BUG-9275 (Lineages cells)
+    difficulty::init(H, M, &g_sess);    // BUG-0870 (all.difficulty)
     shared::set_feed([](const std::string& t) { feed(t); }); // BUG-0696
     world::set_auto_load(H->config_int(M, "coop", "auto_load_world", 1) != 0);
     game::set_anim_listener(on_anim);

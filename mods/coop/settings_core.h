@@ -60,6 +60,7 @@ enum Id : int {
     kOwnProgress,    // Cell, Creature: every player's own DNA and evolution bar; the stage changes when all are full (BUG-9265)
     kStartChoice,    // Cell: a guest new to the planet chooses its own cell's diet, name and colour (BUG-9273, start_choice.h)
     kLineageCells,   // Cell: the players' own cells appear as NPC species in the pool (BUG-9275, lineage_cells.h)
+    kDifficulty,     // all stages: difficulty scaling by party size (BUG-0870, difficulty.h); 0 = off
     kCount
 };
 
@@ -185,6 +186,9 @@ inline const Def kDefs[kCount] = {
     {"cell.lineage_cells", "Cell", "Player cells in the pool",
      "on: about one in six spawns of a creature species of the tide pool takes the look of one of the players' own cells (from their My Creations; never a cell a player plays now) with the same diet, so a carnivore hunts and a herbivore grazes; off: only the game's own species",
      1, 0, 1, Scope::Live, "lineage_cells", false},
+    {"all.difficulty", "All stages", "Difficulty scaling by party size",
+     "per player over one, times this percent: enemies take +15 % more hits and hit +5 % harder (Creature animals, Space ships), hunger +2.5 % (Creature), a city +5 % more capture effort (Civilization), and +60 % stage progress where the party shares one total (own progress and single-player pace off); no extra creatures; off: the game's own values",
+     0, 0, 6, Scope::Live, "difficulty", false, "off|50 %|100 %|150 %|200 %|300 %|400 %"},
 };
 
 // all.autosave (E2): the minutes of a choice (0 = off)
