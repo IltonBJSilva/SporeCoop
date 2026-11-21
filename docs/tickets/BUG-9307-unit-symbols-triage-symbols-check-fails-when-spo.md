@@ -1,7 +1,7 @@
 ---
 id: BUG-9307
 title: unit-symbols: triage_symbols_check fails when sporekit_mod_main+0x40 is an instruction with DWARF line 0
-status: open
+status: duplicate
 kind: tooling
 stage: Tools
 reported: 2026-11-21
@@ -9,12 +9,12 @@ source: make test on feat/difficulty-scaling and feat/custom-cells (base build/a
 role: 
 versions: 
 fixed_in:
-branch:
+branch: fix/unit-symbols
 commits:
 tests:
 signature:
 docs:
-related:
+related: BUG-9303
 ---
 
 ## Report
@@ -33,12 +33,12 @@ it. The check assumes +0x40 always has a line (BUG-1123 / BUG-1128 chose +0x40 f
 on the code layout at the start of sporekit_mod_main, not on the change under test.
 
 ## Fix
-Not fixed here (outside the batch's scope). Idea: the check takes the first address at or after +0x40 whose
-addr2line line is not 0 (or accepts `coop.cpp` without a line for a line-0 instruction).
+Duplicate of BUG-9303 (the same failure, reported on feat/space-late-launch): fixed there on fix/unit-symbols; the
+idea of this ticket (the first address at or after +0x40 whose line is not 0) is what was done. No change here.
 
 ## Verification
-<!-- the test: FAIL without the fix, PASS with it, each with its lab run id (out/lab/YYYYMMDD-HHMMSS);
-     or a line `no-fail-run: <reason>` (docs only, regression only, not reproducible) -->
+no-fail-run: duplicate; BUG-9303's verification (the old test fails 4 checks, the fixed one passes) covers it.
 
 ## History
 - 2026-11-21: opened.
+- 2026-11-21 (fix/unit-symbols): duplicate of BUG-9303; its report and root cause merged into BUG-9303.

@@ -9381,3 +9381,25 @@ By hand on a Windows lane (2026-11-21, the Dopov save, a real late join): ON PAS
 * Manual drivers that read a player's own creature's health after a bite: the partner's healing (creature.pack_heal)
   and the creature's own regeneration refill about 1 health a second; switch pack_heal off and take the first reading
   that moved, at once.
+## Self-tests that depend on the build's layout or the machine's load: unit-symbols and mem_script (2026-11-21, fix/unit-symbols)
+<a id="testing-unit-symbols-line0"></a>
+
+* **unit-symbols' planted fault** (BUG-9303, duplicate BUG-9307): triage_symbols_check.py used to plant the coop.dll
+  fault at sporekit_mod_main+0x40 and demand `mods/coop/coop.cpp:<line>`. In build/amigos-97's layout +0x40 is the
+  reload of the global M after `call game::init`, which clang gives DWARF line 0 (so is +0x3A, the reload of H);
+  crash_triage then prints `sporekit_mod_main+0x40  mods/coop/coop.cpp` with no line, which is right, and the check
+  failed 4 times on every branch of that base whatever it changed. Upstream main (0.7.15.2, 0.7.15.5) passed: there
+  +0x40 lies in the inlined init_config. The check now plants the fault at the first offset at or after +0x40 whose
+  innermost frame has a coop.cpp line (llvm-symbolizer over +0x40..+0x100; printed as `(the planted fault:
+  sporekit_mod_main+0x46; +0x40 has DWARF line 0)`), and when a line-0 byte comes first it checks that such a frame
+  is named with coop.cpp and no `:0`. Still caught: a triage that drops the line (4 FAIL), one that prints `:0`
+  (1 FAIL). To look at an address by hand: `llvm-symbolizer --obj=build/coop.dll --relative-address --inlines
+  --output-style=JSON <rva>` ("Line": 0 is the case) or `llvm-objdump -d -l --start-address=.. build/coop.dll`.
+* **unit-lab mem_script on a loaded machine** (BUG-9298): the 25 s bound covered the killed 400 MB run, the small run
+  and run_one's work after each; with 24 busy loops and 4 GB held beside it in WSL the old check failed 2 of 3 runs
+  (the killed run alone took 12-19 s; the kill came at 158-217 MB, the sampler's 0.3 s step). Now the big script sleeps
+  120 s and its own run must end under 60 s, the killed script's processes are polled up to 10 s, and the conditions
+  are separate checks. A lab that never kills still fails it (131.7 s). To load a machine the same way:
+  `for i in $(seq 24); do (while :; do :; done) & done` plus a python holding 40 x 100 MB, then
+  `python3 tools/tests/lab_selftest.py --case mem_cases` a few times.
+* Left as known WSL flake: unit-tools "zombie leader" (not touched here).

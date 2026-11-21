@@ -5,10 +5,11 @@ symbols of the report's version (make test, part unit-symbols, on the local buil
   triage_symbols_check.py <build dir> <llvm-mingw dir>
 
 * tools/symbols_pack.sh (what the release job publishes) packs the local build; a made-up crash report of
-  that version with a fault in coop.dll (sporekit_mod_main+0x40) and a sporekit.dll frame in the chain;
-* --symbols <the .tar.xz> and --symbols <build dir>: the fault is named sporekit_mod_main+0x40 at
-  mods/coop/coop.cpp:<line> (or the phase function inlined there, "inlined into sporekit_mod_main+0x40"), the
-  sporekit frame by its function;
+  that version with a fault in coop.dll (sporekit_mod_main+0x40, or the first offset after it that has a coop.cpp
+  line: BUG-9303) and a sporekit.dll frame in the chain;
+* --symbols <the .tar.xz> and --symbols <build dir>: the fault is named sporekit_mod_main+0x.. at
+  mods/coop/coop.cpp:<line> (or the phase function inlined there, "inlined into sporekit_mod_main+0x.."), the
+  sporekit frame by its function; when +0x40 has DWARF line 0, a fault there is named with coop.cpp and no line;
 * a report of another version with --symbols <build dir>: refused (the offsets would name wrong code);
 * the download path with a fake `gh` first on PATH (no network): the asset is fetched, checked against the
   release's SHA256SUMS.txt and cached; a second run with a failing gh symbolises from the cache; a wrong
@@ -16,6 +17,7 @@ symbols of the report's version (make test, part unit-symbols, on the local buil
 * a report older than 0.7.15 (no asset) never calls gh.
 SELFTEST_TRIAGE=<old copy of crash_triage.py>: the same checks against an older tool (must FAIL)."""
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -65,6 +67,34 @@ def text_symbol(nm, dll, pattern):
     raise SystemExit(f'triage_symbols_check: no text symbol {pattern} in {dll}')
 
 
+def planted_offset(llvm, dll, func_rva, first=0x40, last=0x100):
+    """(offset, line0) in sporekit_mod_main for the planted fault: the first offset >= first whose innermost frame the
+    line table puts at a coop.cpp line (not line 0); line0 is the first offset before it that has line 0 (or None).
+    Which bytes follow the call of the mod's game init depends on the build's code layout, not on the code under test (BUG-9303):
+    the compiler gives the reload of a global after a call DWARF line 0 when it cannot keep it in a register."""
+    offs = list(range(first, last))
+    r = subprocess.run([os.path.join(llvm, 'bin', 'llvm-symbolizer'), f'--obj={dll}', '--relative-address',
+                        '--inlines', '--output-style=JSON', *(hex(func_rva + o) for o in offs)],
+                       capture_output=True, text=True, timeout=300)
+    try:
+        rows = json.loads(r.stdout or '[]')
+    except ValueError:
+        rows = []
+    line0 = None
+    for o, row in zip(offs, rows):
+        syms = [x for x in row.get('Symbol', []) if x.get('FunctionName')]
+        if not syms or syms[-1]['FunctionName'] != 'sporekit_mod_main':
+            break  # past the function's end
+        if not (syms[0].get('FileName') or '').endswith('coop.cpp'):
+            continue
+        if syms[0].get('Line'):
+            return o, line0
+        if line0 is None:
+            line0 = o
+    raise SystemExit(f'triage_symbols_check: no coop.cpp line in sporekit_mod_main+0x{first:X}..0x{last:X} of {dll} '
+                     f'(llvm-symbolizer: {r.stderr.strip()[-200:]})')
+
+
 def image_base(readobj, dll):
     out = subprocess.run([readobj, '--file-headers', dll], capture_output=True, text=True, check=True).stdout
     return int(re.search(r'ImageBase:\s*(0x[0-9A-Fa-f]+)', out).group(1), 16)
@@ -102,7 +132,13 @@ def main():
     tmp = tempfile.mkdtemp(prefix='sk-triage-sym-')
     try:
         a, fn = text_symbol(nm, os.path.join(build, 'coop.dll'), r'^_sporekit_mod_main$')
-        coop_rva = a - image_base(readobj, os.path.join(build, 'coop.dll')) + 0x40
+        main_rva = a - image_base(readobj, os.path.join(build, 'coop.dll'))
+        # BUG-9303: the planted fault is the first instruction at or after sporekit_mod_main+0x40 that the line
+        # table gives a coop.cpp line; +0x40 itself can be a line-0 instruction (a reload of a global after a call)
+        fault_off, line0_off = planted_offset(llvm, os.path.join(build, 'coop.dll'), main_rva)
+        coop_rva = main_rva + fault_off
+        print(f'  (the planted fault: sporekit_mod_main+0x{fault_off:X}'
+              + (f'; +0x{line0_off:X} has DWARF line 0)' if line0_off is not None else ')'))
         b, kfn = text_symbol(nm, os.path.join(build, 'sporekit.dll'), r'^__ZN2sk\w*\d\w+Ev$')
         kit_rva = b - image_base(readobj, os.path.join(build, 'sporekit.dll')) + 5  # a return address inside it
         kit_name = subprocess.run([os.path.join(llvm, 'bin', 'llvm-cxxfilt'), '-_', kfn], capture_output=True,
@@ -115,17 +151,28 @@ def main():
         rep = os.path.join(tmp, 'crash-20261115-000000.txt')
         report(rep, ver, coop_rva, kit_rva)
         env = dict(os.environ, SPORECOOP_SYMBOLS_CACHE=os.path.join(tmp, 'cache'), LLVM_MINGW=llvm)
-        # sporekit_mod_main+0x40 may lie in a phase function inlined into it (B2, BUG-1128): then the frame names that
-        # function at its coop.cpp line, `(inlined into sporekit_mod_main+0x40)`
-        want = re.compile(rf'^symbol\s+coop\.dll\+0x{coop_rva:X}\s+(?:sporekit_mod_main\+0x40\s+mods/coop/coop\.cpp:\d+'
-                          rf'|\S+\s+mods/coop/coop\.cpp:\d+\s+\(inlined into sporekit_mod_main\+0x40\))', re.M)
+        # the fault may lie in a phase function inlined into sporekit_mod_main (B2, BUG-1128): then the frame names
+        # that function at its coop.cpp line, `(inlined into sporekit_mod_main+0x..)`
+        o = f'0x{fault_off:X}'
+        want = re.compile(rf'^symbol\s+coop\.dll\+0x{coop_rva:X}\s+(?:sporekit_mod_main\+{o}\s+mods/coop/coop\.cpp:\d+'
+                          rf'|\S+\s+mods/coop/coop\.cpp:\d+\s+\(inlined into sporekit_mod_main\+{o}\))', re.M)
         want_kit = re.compile(rf'^symbol\s+sporekit\.dll\+0x{kit_rva:X}\s+.*{re.escape(kit_name)}', re.M)
         for what, sym in (('the release asset (.tar.xz)', tar_path), ('a local build folder', build)):
             rc, out = run(['--symbols', sym, rep], env)
             check(rc == 0 and want.search(out) is not None,
-                  f'--symbols {what}: the fault is sporekit_mod_main+0x40 at mods/coop/coop.cpp '
+                  f'--symbols {what}: the fault is sporekit_mod_main+{o} at mods/coop/coop.cpp:<line> '
                   f'({[l for l in out.splitlines() if l.startswith("symbol")][:3]})')
             check(want_kit.search(out) is not None, f'--symbols {what}: the sporekit.dll frame is in {kit_name}')
+        if line0_off is not None:
+            # an instruction with DWARF line 0 is named by its function and file, never as `coop.cpp:0`
+            rep0 = os.path.join(tmp, 'crash-20261115-000002.txt')
+            report(rep0, ver, main_rva + line0_off, kit_rva)
+            rc, out = run(['--symbols', build, rep0], env)
+            fr = [ln for ln in out.splitlines() if re.match(rf'symbol\s+coop\.dll\+0x{main_rva + line0_off:X}\s', ln)]
+            check(rc == 0 and len(fr) == 1 and re.search(rf'sporekit_mod_main\+0x{line0_off:X}(?![0-9A-F])', fr[0])
+                  and re.search(r'\smods/coop/coop\.cpp(?![:\w])', fr[0]) is not None,
+                  f'a line-0 instruction (sporekit_mod_main+0x{line0_off:X}) is named with coop.cpp and no line '
+                  f'({fr})')
         other = os.path.join(tmp, 'crash-20261115-000001.txt')
         report(other, '0.7.13', coop_rva, kit_rva)
         rc, out = run(['--symbols', build, other], env)
