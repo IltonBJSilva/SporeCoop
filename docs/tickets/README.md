@@ -1327,3 +1327,4 @@ not-reproduced, game-bug (Spore itself), wontfix, duplicate.
 | [BUG-9304](BUG-9304-civ-own-nations-on-the-guest-s-own-game-its-own.md) | open | bug | Civ | 2026-11-21 |  | Civ own nations: on the guest's own game its own capital's citizens are the host's species |
 | [BUG-9305](BUG-9305-space-a-guest-s-own-spaceship-editor-that-takes.md) | open | bug | Space | 2026-11-21 |  | Space: a guest's own spaceship editor that takes 36 s to load drops the guest (the host hears nothing for 30 s) |
 | [BUG-9307](BUG-9307-unit-symbols-triage-symbols-check-fails-when-spo.md) | duplicate | tooling | Tools | 2026-11-21 |  | unit-symbols: triage_symbols_check fails when sporekit_mod_main+0x40 is an instruction with DWARF line 0 |
+| [BUG-9310](BUG-9310-space-a-guest-new-to-the-host-s-space-world-its.md) | open | bug | Space | 2026-11-21 |  | Space: a guest new to the host's Space world (its party seat has no species) gets no own empire and no late-launch offer |
