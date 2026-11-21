@@ -11,7 +11,7 @@ versions: 0.7.15.98
 fixed_in: unreleased
 branch: build/amigos-98
 commits: 21a401dd
-tests: by hand on lane B, Marona (Creature), driver E:\Repositorio\SporeCoop-wt98	9313.py (not in the repo; no lab test)
+tests: by hand on lane B, two games on Marona (Creature), the driver r98/t9313.py of the release folder (not in the repo; no lab test yet); make test
 signature:
 docs:
 related: BUG-9306
@@ -32,7 +32,7 @@ status() shows "(regen)" only when kPackHeal is on and "rescue off" when kPackRe
 `coop.fix team.hud_aids off` (the old text).
 
 ## Verification
-By hand on lane B (two games, Marona, Creature stage set to Rivals, the guest put next to the host), r98	9313.out:
+By hand on lane B (two games, Marona, Creature stage set to Rivals, the guest put next to the host), r98\t9313.out:
 - `coop.fix team.hud_aids off` on both: FAIL (the bug): "Pack: Bob close (regen) | rescue ready" on the host,
   "Pack: Player close (regen) | rescue ready" on the guest.
 - on: PASS: "Pack: Bob close | rescue off" on the host, "Pack: Player close | rescue off" on the guest; back to
