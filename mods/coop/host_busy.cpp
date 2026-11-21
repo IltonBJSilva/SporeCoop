@@ -44,6 +44,17 @@ static bool g_save_fix = true;
 COOP_FIX("core.host_busy_save", "BUG-1217", g_save_fix,
          "core: the host's own save (a world share's, an autosave) is no stand its guests are told about or wait for");
 
+// BUG-9289: the guest's own cinematic (a brain upgrade's, with its caption) that started while this game waited for
+// the host's pause stayed black for good: no caption, input locked, still "paused" after the host went on, until Esc
+// skipped it; meanwhile the guest's own progress reached nobody (it reports outside cinematics). A cinematic of this
+// game is its own: the wait stands aside while one plays (none starts, a running one ends) and comes back after it.
+// Off: the wait holds the game's time through its cinematics (0.7.15.5).
+static bool g_cine_fix = true;
+COOP_FIX("core.host_busy_cinematic", "BUG-9289", g_cine_fix,
+         "core: a guest's game does not wait for the host's pause while a cinematic of its own plays (it ends black otherwise)");
+static uint32_t g_cine_steps; // waits that stood aside for a cinematic
+static busy_model::State g_cine_last_to = busy_model::State::None; // the host state of the last wait
+
 static busy_model::Announcer g_ann;
 static busy_model::HostView g_view;
 static busy_model::Edge g_edge;
@@ -190,9 +201,20 @@ static void guest_tick(double now)
     int stage = stage_epoch::index_of(g_mode);
     busy_model::Act a = busy_model::act(stage, e, spaceext::rivals());
     bool want = a == busy_model::Act::Wait && stage_on(stage) && in_host_world() && !game::leaving_stage();
+    // BUG-9289: the host's explicit pause only (a caption stand of the host's is the stage's own wait, Tribe)
+    const bool own_cine = want && g_cine_fix && e.to == busy_model::State::Paused && world::cinematic_playing();
+    if (own_cine) {
+        if (g_hold != Hold::None) {
+            g_cine_steps++;
+            hold(false, stage, "a cinematic of this game plays (BUG-9289)");
+        }
+        return; // (no notice: the host's pause is still on; the wait comes back after the cinematic)
+    }
     std::string host = g_sess.name_of(0);
     if (want && g_hold == Hold::None) {
-        if (hold(true, stage, busy_model::state_name(e.to)))
+        const bool again = g_cine_steps && e.to == g_cine_last_to; // back after a cinematic: told already
+        g_cine_last_to = e.to;
+        if (hold(true, stage, busy_model::state_name(e.to)) && !again)
             feed(e.to == busy_model::State::Paused ? host + " paused the game: yours waits until " + host + " goes on"
                                                     : host + "'s game stands: yours waits until it goes on");
     } else if (!want && g_hold != Hold::None) {
@@ -235,14 +257,14 @@ void host_busy_message(uint8_t from, net::Reader& r)
 
 std::string host_busy_status()
 {
-    char b[320];
+    char b[360];
     snprintf(b, sizeof b,
              "host busy: fix=%d role=%s now=%s why=%04X told=%s sent=%u | view heard=%d host=%s why=%04X settled=%s rx=%u "
-             "dropped=%u | wait=%s waits=%u resumes=%u\n",
+             "dropped=%u | wait=%s waits=%u resumes=%u cine_steps=%u\n",
              (int)g_host_busy_fix, g_sess.role() == net::Role::Host ? "host" : "guest", busy_model::state_name(g_host_now.state),
              g_host_now.why, busy_model::state_name(g_ann.sent.state), g_sent, (int)g_view.heard,
              busy_model::state_name(g_view.last.state), g_view.last.why, busy_model::state_name(g_edge.to), g_rx, g_rx_dropped,
-             g_hold == Hold::None ? "none" : g_hold == Hold::Cell ? "cell" : "time", g_waits, g_resumes);
+             g_hold == Hold::None ? "none" : g_hold == Hold::Cell ? "cell" : "time", g_waits, g_resumes, g_cine_steps);
     if (g_hold != Hold::None) {
         size_t l = strlen(b);
         if (l > 0 && l + 40 < sizeof b)
