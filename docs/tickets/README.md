@@ -1302,3 +1302,4 @@ not-reproduced, game-bug (Spore itself), wontfix, duplicate.
 | [BUG-9281](BUG-9281-coop-party-counts-errors-on-a-new-game-before-th.md) | fixed | bug | Cell | 2026-11-20 | unreleased | coop.party counts errors on a new game before the planet has a file |
 | [BUG-9282](BUG-9282-suite-py-adds-civ-own-money-twice-on-build-amigo.md) | fixed | tooling | Tools | 2026-11-20 | unreleased | suite.py adds civ_own_money twice on build/amigos |
 | [BUG-9289](BUG-9289-creature-a-guest-s-brain-upgrade-cinematic-that.md) | open | bug | Creature | 2026-11-20 |  | Creature: a guest's brain-upgrade cinematic that starts while the host's pause holds its game stays black (no caption); its own progress stops reaching the host until Esc |
+| [BUG-9291](BUG-9291-tribe-civ-the-host-s-city-hall-editor-takes-over.md) | open | bug | Tribe, Civ | 2026-11-20 |  | Tribe -> Civ: the host's City Hall editor takes over 30 s to open on a loaded PC and every guest's session times out |
