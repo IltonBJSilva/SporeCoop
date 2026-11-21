@@ -3656,8 +3656,12 @@ Pradnie (the guest's party seat 1 with species 0, a start-any record with creatu
   (T0..T3: not a gas giant or an asteroid belt), the best type first (planets generated with RequirePlanetsForStar when
   the star was never visited). A star without such a planet is left out and the pick runs again. ✔ Pradnie: 2.10 and
   2.24 units from home in two runs (neighbour stars are ~0.5-1 apart: "a few systems away").
-* ~ Not the same star in two runs from the same save (5869587, then 5869601): which star of the nearest five is
-  "free" or has planets differed. Harmless (the host picks once and keeps it), not looked into.
+* ~ Not the same star in four runs from the same save (5869587, 5869601, 5869588, 0059901E's star; 2.10 to 3.12
+  units): which star of the nearest ones is "free" or has planets differed. Harmless (the host picks once and keeps
+  it), not looked into.
+* ✔ **Save, reload, rejoin**: the host saved, both left, the host loaded the save again and hosted, the guest joined
+  again: the host read the homeworld from its file (no new pick), the guest's game made it its colony again, the host's
+  mirror showed it again with the guest's species.
 * The record: `<planet>.spo.duoemphome` (EMH1: u32 'EMH1', u8 n, n x {u8 seat, u32 PlanetID}), written with the empire
   file (also with every save); MSG_SPACE kind 106 K_HOME {to, serial of the K_EMPIRE it follows, u32 planet} after
   every K_EMPIRE with an empire (space family 1.6).
