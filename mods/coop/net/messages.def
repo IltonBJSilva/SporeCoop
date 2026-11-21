@@ -48,12 +48,14 @@
 // Minor bump of feat/lineage-cells: creations 1.1 (MSG_CREATION kind 9, a guest's own cell for the host's Lineages cells,
 // a kind older versions drop; kind 5 also carries a cll key: BUG-9275).
 // Minor bump of feat/start-choice-any: session 1.7 (MSG_START_ANY 110, a new type older versions ignore: BUG-9293).
+// Minor bumps of feat/lineages-rescue: creature 1.2 (MSG_CREATURE_RESCUE, a new type older versions ignore: BUG-9283),
+// tribe 1.2 (MSG_TRIBE_ANIM kind K_RESCUE 22, a kind older versions drop: BUG-9278).
 FAMILY(session,   1, 1, 7, STAGE_ALWAYS, "session", "net/protocol.h")
 FAMILY(world,     2, 1, 0, STAGE_ALWAYS, "world transfer", "")
-FAMILY(creature,  3, 1, 1, STAGE_CREATURE, "Creature", "")
+FAMILY(creature,  3, 1, 2, STAGE_CREATURE, "Creature", "")
 FAMILY(npc,       4, 1, 1, STAGE_CREATURE | STAGE_TRIBE | STAGE_CIV, "mirrored creature and world state", "")
 FAMILY(cell,      5, 1, 1, STAGE_CELL, "Cell", "")
-FAMILY(tribe,     6, 1, 1, STAGE_TRIBE, "Tribe", "wire/tribe_anim.h")
+FAMILY(tribe,     6, 1, 2, STAGE_TRIBE, "Tribe", "wire/tribe_anim.h")
 FAMILY(civ,       7, 1, 1, STAGE_CIV | STAGE_SPACE, "Civilization", "")
 FAMILY(space,     8, 1, 4, STAGE_SPACE, "Space", "wire/common.h wire/space_core.h wire/space_map.h wire/space_contracts.h wire/space_diplomacy.h wire/space_finale.h wire/space_rivalry.h wire/space_allies.h wire/space_trade.h wire/space_planets.h wire/space_badges.h wire/space_eco.h wire/space_empires.h")
 FAMILY(shared,    9, 1, 0, STAGE_TRIBE | STAGE_CIV | STAGE_SPACE, "shared resources", "wire/common.h wire/shared_res.h")
@@ -140,6 +142,8 @@ MSG(75, OWN_CARDS,    R,  Any,   Session,   OwnCards,    Both,   session,   "the
 MSG(77, PROGRESS,     R,  Any,   Session,   Progress,    Both,   session,   "own progress in Cell / Creature (own_progress_logic.h, BUG-9265): u8 kind (1 ask, 2 set, 3 report, 4 table, 5 gain), payload")
 MSG(79, START_CHOICE, R,  Any,   Session,   StartChoice, Both,   session,   "every player's own start in a new Cell game (start_choice_logic.h, BUG-9273): u8 kind (1 ask: host -> a guest; 2 answer: guest -> host u8 diet, u8 colour, u8 body colour, str8 name; 3 table: host -> guests u8 n, n x {u8 player, the answer})")
 MSG(110, START_ANY,   R,  Any,   Session,   StartAny,    Both,   session,   "every player's own start in a new game at Creature, Tribe, Civ or Space (start_any_logic.h, BUG-9293): u8 kind (1 ask: host -> a guest u8 stage; 2 answer: guest -> host u8 stage, u32 creature, 4 x i8 card option; 3 taken: host -> that guest u8 ok)")
+
+MSG(95, CREATURE_RESCUE, R, Any, Module,   CreatureRescue, Both, creature, "a downed creature (creature_rescue_logic.h, BUG-9283): u8 kind, u32 world; guest -> host K_DOWN / K_GIVE_UP u32 knockout; host -> guest K_RESULT u32 knockout, u8 result; host -> guests K_LINES u8 n, n x {u8 player, u16 tenths left, u8 revive %}")
 
 #undef MSG
 #undef FAMILY

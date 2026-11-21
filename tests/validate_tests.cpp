@@ -1318,8 +1318,9 @@ static void test_manifest()
         known += msg_info((uint8_t)t).known;
     // types added after 0.7.14 (a 0.7.14 peer ignores them, B6): MSG_HOST_BUSY 70 (BUG-1142), MSG_TRIBE_ANIM 71 (C7,
     // BUG-1160), MSG_CELL_MATE 72 (BUG-1246), MSG_IDENTITY 73 (BUG-9258, the Lineages port), MSG_CIV_WALLET 74 (BUG-9259),
-    // MSG_OWN_CARDS 75 (BUG-9263), MSG_PROGRESS 77 (BUG-9265), MSG_START_CHOICE 79 (BUG-9273)
-    const std::set<int> added_types = {70, 71, 72, 73, 74, 75, 77, 79, 110};
+    // MSG_OWN_CARDS 75 (BUG-9263), MSG_PROGRESS 77 (BUG-9265), MSG_START_CHOICE 79 (BUG-9273), MSG_CREATURE_RESCUE 95
+    // (BUG-9283), MSG_START_ANY 110 (BUG-9293)
+    const std::set<int> added_types = {70, 71, 72, 73, 74, 75, 77, 79, 95, 110};
     CHECK(known == (int)(sizeof golden0714::kTypes / sizeof golden0714::kTypes[0] + added_types.size()));
     CHECK(MSG_HOST_BUSY == 70 && msg_info(70).known && msg_dir(70) == MsgDir::Host &&
           host_world::msg_class(70) == host_world::MsgClass::Session && dispatch_route(70, false) == Route::HostBusy &&
@@ -1348,6 +1349,10 @@ static void test_manifest()
     CHECK(MSG_START_ANY == 110 && std::string(msg_info(110).name) == "START_ANY" && msg_info(110).family == Family::session &&
           msg_dir(110) == MsgDir::Any && host_world::msg_class(110) == host_world::MsgClass::Session &&
           dispatch_route(110, true) == Route::StartAny && dispatch_route(110, false) == Route::StartAny); // BUG-9293
+    CHECK(MSG_CREATURE_RESCUE == 95 && std::string(msg_info(95).name) == "CREATURE_RESCUE" &&
+          msg_info(95).family == Family::creature && msg_dir(95) == MsgDir::Any &&
+          host_world::msg_class(95) == host_world::MsgClass::Module && dispatch_route(95, true) == Route::CreatureRescue &&
+          dispatch_route(95, false) == Route::CreatureRescue);
     for (int t : added_types)
         for (auto& g : golden0714::kTypes)
             CHECK(g.id != t);

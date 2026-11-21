@@ -136,15 +136,16 @@ payload notes above `enum MsgType`) and in the modules' wire code.
 | 77 | `PROGRESS` | R | any | Session | Progress | session | own progress in Cell / Creature (own_progress_logic.h, BUG-9265): u8 kind (1 ask, 2 set, 3 report, 4 table, 5 gain), payload |
 | 79 | `START_CHOICE` | R | any | Session | StartChoice | session | every player's own start in a new Cell game (start_choice_logic.h, BUG-9273): u8 kind (1 ask: host -> a guest; 2 answer: guest -> host u8 diet, u8 colour, u8 body colour, str8 name; 3 table: host -> guests u8 n, n x {u8 player, the answer}) |
 | 110 | `START_ANY` | R | any | Session | StartAny | session | every player's own start in a new game at Creature, Tribe, Civ or Space (start_any_logic.h, BUG-9293): u8 kind (1 ask: host -> a guest u8 stage; 2 answer: guest -> host u8 stage, u32 creature, 4 x i8 card option; 3 taken: host -> that guest u8 ok) |
+| 95 | `CREATURE_RESCUE` | R | any | Module | CreatureRescue | creature | a downed creature (creature_rescue_logic.h, BUG-9283): u8 kind, u32 world; guest -> host K_DOWN / K_GIVE_UP u32 knockout; host -> guest K_RESULT u32 knockout, u8 result; host -> guests K_LINES u8 n, n x {u8 player, u16 tenths left, u8 revive %} |
 
 | Family | Id | Rev | Used in | Covers |
 |---|---|---|---|---|
 | session (session) | 1 | 1.7 | every stage and the menus | `HELLO`, `WELCOME`, `REJECT`, `PLAYER_JOIN`, `PLAYER_LEAVE`, `PLAYER_STATE`, `CHAT`, `PING`, `PONG`, `BYE`, `ABILITY`, `PING_MARK`, `READY`, `LOBBY`, `NOTICE`, `DIAG`, `SETTINGS`, `COLORS`, `REPORT`, `HOST_WORLD`, `HOST_BUSY`, `IDENTITY`, `OWN_CARDS`, `PROGRESS`, `START_CHOICE`, `START_ANY` |
 | world (world transfer) | 2 | 1.0 | every stage and the menus | `WORLD_OFFER`, `WORLD_FILE`, `WORLD_CHUNK`, `WORLD_DONE` |
-| creature (Creature) | 3 | 1.1 | Creature | `ANIM`, `WORLD_TIME`, `DNA`, `DNA_ADD`, `VOTE`, `SPECIES`, `SOCIAL`, `NEST`, `PARTS`, `EFFECT` |
+| creature (Creature) | 3 | 1.2 | Creature | `ANIM`, `WORLD_TIME`, `DNA`, `DNA_ADD`, `VOTE`, `SPECIES`, `SOCIAL`, `NEST`, `PARTS`, `EFFECT`, `CREATURE_RESCUE` |
 | npc (mirrored creature and world state) | 4 | 1.1 | Creature, Tribe, Civilization | `DAMAGE`, `NPC_STATE`, `NPC_SPAWN`, `NPC_DESPAWN`, `DAMAGE_REQ`, `WOBJ`, `FIELDS`, `NPC_RESYNC`, `NPC_ANIM`, `WSTATE`, `PLAYER_RULE`, `MIRROR_FX`, `NPC_MEAT` |
 | cell (Cell) | 5 | 1.1 | Cell | `CELL_STATE`, `CELL_HIT`, `CELL_EAT`, `CELL_FOOD`, `CELL_KO`, `CELL_BITTEN`, `CELL_MATE` |
-| tribe (Tribe) | 6 | 1.1 | Tribe | `TRIBE_STATE`, `TRIBE_CMD`, `TRIBE_ANIM` |
+| tribe (Tribe) | 6 | 1.2 | Tribe | `TRIBE_STATE`, `TRIBE_CMD`, `TRIBE_ANIM` |
 | civ (Civilization) | 7 | 1.1 | Civilization, Space | `CIV_STATE`, `CIV_CMD`, `CIV_BUILD`, `ROLE`, `CIV_ALARM`, `CIV_WALLET` |
 | space (Space) | 8 | 1.4 | Space | `UFO_STATE`, `UFO_HIT`, `UFO_DAMAGE`, `SPACE` |
 | shared (shared resources) | 9 | 1.0 | Tribe, Civilization, Space | `RES`, `RES_ADD` |
