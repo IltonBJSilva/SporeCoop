@@ -719,12 +719,12 @@ static void local_task(void*)
 }
 bool local_start(uint32_t species)
 {
+    if (g_local_fix && g_local_epoch && g_local_epoch == spaceext::world_epoch() && g_renamed)
+        return true; // done in this world
     g_local_why = !g_local_fix ? "off" : !g_name_fix ? "name off" : !species ? "no species" : !active() ? "not active"
                   : spaceext::is_host() ? "host" : !spaceext::in_space() ? "not in Space" : "queued";
     if (!g_local_fix || !g_name_fix || !species || !active() || spaceext::is_host() || !spaceext::in_space())
         return false;
-    if (g_local_epoch && g_local_epoch == spaceext::world_epoch() && g_renamed)
-        return true; // done in this world
     g_local_species = species;
     if (!g_local_queued) {
         g_local_queued = true;
