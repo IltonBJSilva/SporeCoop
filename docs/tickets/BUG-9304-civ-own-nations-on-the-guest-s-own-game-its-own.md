@@ -10,7 +10,7 @@ role: guest
 versions: 0.7.15.96
 fixed_in: unreleased
 branch: fix/civ-citizens
-commits:
+commits: 43d7e802
 tests: by hand on lane B, E:\Repositorio\SporeCoop-wt\civcit\t9304.py and t9304_2.py (not in the repo; the QA campaign drivers on the Creature save Mirey)
 signature:
 docs: docs/re/civ.md#civ-own-nations, docs/re/tribe.md#tribe-outfit-own-species
