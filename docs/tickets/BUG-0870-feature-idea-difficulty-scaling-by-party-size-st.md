@@ -10,7 +10,7 @@ role:
 versions: 
 fixed_in: unreleased
 branch: feat/difficulty-scaling
-commits:
+commits: 068e3ef6
 tests: tools/tests/coop_difficulty.py (suite difficulty, twin difficulty_off); validate_tests test_difficulty; manual two-instance runs on lane D (Verification)
 signature:
 docs: docs/re/creature.md#creature-difficulty-scaling
