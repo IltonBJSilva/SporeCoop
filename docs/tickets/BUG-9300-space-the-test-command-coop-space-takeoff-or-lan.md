@@ -10,8 +10,8 @@ role: host
 versions: 0.7.15.96
 fixed_in: unreleased
 branch: fix/space-captain
-commits: 6d26b051
-tests: agentC6/t9300.py (lane C, by hand)
+commits: 6d26b051, a76260fb
+tests: tools/tests/coop_space_cmd_guard.py (manual driver, Windows lane; agentC6/repo_guard.log PASS)
 signature: Simulator::GetCurrentContext+0x5 (data 0x00000010), module call coop.dll spacecoop::debug
 docs:
 related: BUG-9296
