@@ -3741,3 +3741,29 @@ BUG-9312. Lane A, Steam exe 3010a413 (the GOG 2024 code), dev1's Pradnie, the gu
 * A guest homeworld the host does not mirror (seen once, lane A): the host picked 0559A013 (star 5873683 'Satis-3'),
   the guest's game made it its colony (mine=1), but the host's allies mirror listed only the 0059xxxx planets of the
   guest's roster and the host's star stayed nobody's (owner FFFFFFFF), also after a reload: BUG-9315.
+
+## A guest homeworld that turns back into a plain planet (2026-11-21, fix/guest-home-mirror)
+<a id="space-guest-home-lost"></a>
+
+BUG-9315 (lane A, Steam exe, Pradnie of dev1).
+* ✔ The guest's homeworld (BUG-9310) made a record-level colony (`spaceext::colonize_own`) in the same tick its star's
+  planets were first generated (`planet_record` -> `RequirePlanetsForStar`, a never visited star) was a plain planet
+  again moments later: the same cPlanetRecord (same name), tech +0x194 back to 1, no cCivData, while the star kept the
+  guest's empire (+0x54 = its pol, star tech 5). Every run with that star new to the guest's game. Made again later
+  (the test command `coop.space empire colony <id>`, or the fix) it stayed tech 5 for the whole test.
+* ~ What turns it back is not known; the generation log said `pending=0` (the star was not in cStarManager +0xDC). A
+  deferred step of the game after a generation is the guess. A star whose planets had been generated about a second
+  earlier (the kept colonies' restore) kept the colony.
+* ✔ Consequence: the roster (space_map.cpp read_local) lists only tech-5 planets, so the guest's own roster lacked its
+  homeworld and the host's allies mirror never had it (the host's star stayed FFFFFFFF). The star owner alone
+  (`coop.space empires home` mine=1) does not show it; `coop.space allies star <star>` on the guest prints the record's
+  tech.
+* ✔ The mirror's one skipped planet in these runs, `skipped 00599019: a colony or civilization here already`, is the
+  host's own homeworld: the guest's game plays the host's save, its player empire (renamed "Bob's empire") still has
+  Pradnie as its home colony and lists it (`home shared` in the host's copy of the roster). Correct to skip.
+* Fix (`space.guest_home_keep`): the guest checks every 5 s and makes the homeworld again; colonize does not call
+  AddStarOwnership for a star already in the empire's +0x88 list.
+* Tests: the host's kept-colonies store `%APPDATA%\SporeKit-<profile>\Spore\Games-sporecoop-store\game0\<planet>.spo.txt`
+  changes the result (a colony kept there is restored before the homeworld is made): restore it in every driver. Its
+  last line `end <hex>` is FNV-1a 32 of everything before that line (player_store.h fnv32, no salt): a test can write a
+  store state.

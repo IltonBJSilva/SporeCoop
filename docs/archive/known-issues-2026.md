@@ -3762,3 +3762,13 @@ Found by eye in the sheets of lab 20261111-044257 (54 sheets); details and how t
 * Reproduce: the Kealeneon fixture on lane C, the batch driver agentC4/t1.py, a screenshot of the guest after its launch.
 * Ticket: BUG-9297.
 * Fixed on fix/space-captain (2026-11-21): the own launch's Space start gets the guest's own captain and empire name at once (switch space.own_captain_local).
+
+## Space: a guest homeworld the host's allies mirror never shows (2026-11-21, feat/space-guest-home)
+<a id="issue-space-guest-home-unmirrored"></a>
+
+* What happens: the host picked the guest's homeworld 0559A013 (star 5873683); the guest's game made it its colony, the
+  host's star stayed nobody's and its allies mirror listed only the guest's older 0059xxxx colonies (also after a reload).
+* Reproduce: E:\Repositorio\SporeCoop-wt\sgh\t3.py setup on lane A (not every run: the host's pick differs per run);
+  `coop.space empires home` on both games, `coop.space allies list` on the host.
+* Ticket: BUG-9315 (fixed on fix/guest-home-mirror: the homeworld turned back into a plain planet in the guest's
+  game; docs/re/space.md#space-guest-home-lost).

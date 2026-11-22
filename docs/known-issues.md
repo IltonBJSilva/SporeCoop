@@ -515,15 +515,6 @@ anchor so other docs can link to it:
 * Reproduce: seen once (lane B, Marona of the dev1 galaxy copy, the 0.7.15.98 smoke); the steps are in the ticket.
 * Ticket: BUG-9316.
 
-## Space: a guest homeworld the host's allies mirror never shows (2026-11-21, feat/space-guest-home)
-<a id="issue-space-guest-home-unmirrored"></a>
-
-* What happens: the host picked the guest's homeworld 0559A013 (star 5873683); the guest's game made it its colony, the
-  host's star stayed nobody's and its allies mirror listed only the guest's older 0059xxxx colonies (also after a reload).
-* Reproduce: E:\Repositorio\SporeCoop-wt\sgh\t3.py setup on lane A (not every run: the host's pick differs per run);
-  `coop.space empires home` on both games, `coop.space allies list` on the host.
-* Ticket: BUG-9315.
-
 ## Space: a guest's ship shows as a white box (2026-11-21, feat/space-guest-home)
 <a id="issue-space-white-ship"></a>
 
