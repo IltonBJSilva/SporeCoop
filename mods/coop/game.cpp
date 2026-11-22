@@ -2484,6 +2484,72 @@ void herd_home(void* h, const net::Vec3& pos)
 
 void* herd_of(void* c) { return field<void*>(c, kHerdOff); }
 
+// BUG-9316: a herd's member list (+0x40..+0x44, a vector of intrusive pointers: each entry holds a reference) is kept by
+// the game's own adds and removes (cCreatureAnimal::Create, CreatureGame_JoinNestHerd, and a creature's destroy:
+// 0xC083D0 -> HerdList_Remove on the herd its +0x1674 names, then +0x1674 = 0); Creature_SetHerd changes +0x1674 only
+// (and the herd's mom +0x164 / egg layer +0x194), never a list. A creature the mod moved to another herd stayed in the
+// old herd's list; destroyed later it went from no list, and the old list's reference kept it alive with +0x1674 = 0.
+// The guest's own nest herd is its avatar's herd: the end-of-Creature fire cinematic (2677CD86) casts every member of
+// the avatar herd's list as an actor placed at its herd's nest and read the null herd (0xC6AE60 Herd_NestPosition read
+// 0x160, the guest's crash 1.5 s after its editor). Now our moves take the creature out of the old list first, and the
+// avatar herd's list loses every member whose herd is another one (or none) every frame of the Creature stage.
+// `coop.fix creature.herd_list_stale off`: SetHerd only, no purge (0.7.15.98).
+static bool g_herd_list_fix = true;
+COOP_FIX("creature.herd_list_stale", "BUG-9316", g_herd_list_fix,
+         "creature: a creature moved to another herd leaves the old herd's member list (a destroyed one there crashed the evolve cinematic)");
+static uint32_t g_herd_list_removed = 0;
+bool herd_list_fix() { return g_herd_list_fix; }
+uint32_t herd_list_removed() { return g_herd_list_removed; }
+
+bool herd_list_remove(void* herd, void* c)
+{
+    static const uintptr_t rm = H->sym("SporeCoop::HerdList_Remove");
+    if (!rm || !herd || !c || !skg::readable(herd, 0x48))
+        return false;
+    void* v = c;
+    if (!cdecl_call<bool>(rm, (uint8_t*)herd + 0x40, &v))
+        return false;
+    g_herd_list_removed++;
+    return true;
+}
+
+void move_to_herd(void* c, void* to)
+{
+    static const uintptr_t set_herd = H->sym("SporeCoop::Creature_SetHerd");
+    if (!set_herd || !c)
+        return;
+    if (g_herd_list_fix)
+        if (void* from = herd_of(c); from && from != to)
+            herd_list_remove(from, c);
+    thiscall<void>(set_herd, c, to);
+}
+
+unsigned herd_list_purge(void* herd)
+{
+    if (!g_herd_list_fix || !herd || !skg::readable(herd, 0x48))
+        return 0;
+    unsigned n = 0;
+    for (int guard = 0; guard < 64; ++guard) {
+        void** b = field<void**>(herd, 0x40);
+        void** e = field<void**>(herd, 0x44);
+        if (!b || e <= b || e - b > 256)
+            break;
+        void* stale = nullptr;
+        for (void** it = b; it < e && !stale; ++it)
+            if (*it && skg::readable(*it, kHerdOff + 4) && field<void*>(*it, kHerdOff) != herd)
+                stale = *it;
+        if (!stale)
+            break;
+        void* other = field<void*>(stale, kHerdOff);
+        H->log(M, SK_INFO, "herd %p: member %p (its herd %p%s) left the member list (BUG-9316)", herd, stale, other,
+               other ? "" : ", destroyed");
+        if (!herd_list_remove(herd, stale))
+            break;
+        ++n;
+    }
+    return n;
+}
+
 bool nest_position(void* c, net::Vec3& out)
 {
     static uintptr_t get = H->sym("SporeCoop::Herd_NestPosition");

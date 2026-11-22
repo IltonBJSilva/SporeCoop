@@ -1,20 +1,20 @@
 ---
 id: BUG-9270
 title: A guest's own nest herd keeps the host's family copies in its member list after the guest joins it
-status: open
+status: fixed
 kind: bug
 stage: Creature
 reported: 2026-11-20
 source: Lineages port test (lane A)
 role: 
 versions: 
-fixed_in:
-branch:
+fixed_in: unreleased
+branch: fix/evolve-nest
 commits:
-tests:
+tests: E:/Repositorio/SporeCoop-wt/evnest/t9316.py (two games, lane B)
 signature:
-docs:
-related: BUG-9262
+docs: docs/re/creature.md#creature-herd-member-list
+related: BUG-9262, BUG-9316
 ---
 
 ## Report
@@ -29,10 +29,15 @@ members into the new herd's list, and Creature_SetHerd removes a creature only f
 Effect not seen: the game's family logic reads +0x40 (mates, greetings); no wrong behaviour was observed in the test.
 
 ## Fix
-Not fixed: needs the herd's remove function (0xC6B5E0, called by Creature_SetHerd; no symbol yet) checked first.
+0xC6B5E0 (read from the running game, 2026-11-21) only lets go of the herd's mom / egg layer: Creature_SetHerd never
+touches a member list. The copies came into the guest's avatar herd while it played the host's species; own_family_tick
+moved them out with SetHerd only. Effect found: BUG-9316 (a destroyed stale member crashed the fire cinematic). Fixed
+with it: `creature.herd_list_stale` (the move takes it out of the old list with HerdList_Remove 0xACC940; the avatar
+herd's list is purged of members of other herds every frame).
 
 ## Verification
-<!-- the test: FAIL without the fix, PASS with it -->
+BUG-9316's run: OFF 4 STALE members in the guest's own nest herd (evnest/t_off.out), ON 0 (evnest/t_on.out).
 
 ## History
 - 2026-11-20: opened (found in the Lineages port test, lane A).
+- 2026-11-21: cause read in the asm, fixed with BUG-9316 on fix/evolve-nest.

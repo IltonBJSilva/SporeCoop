@@ -5028,3 +5028,35 @@ BUG-9306, [docs/11-rivals.md#rivals-stages-race](../11-rivals.md#rivals-stages-r
   737). Then the evolve button (History, 993 748; its check 1006 742) started the vote "Player wants to move on to the
   Tribe stage", the guest's I'm ready opened the host's stage-end editor.
 * ✔ (runtime) A guest's `coop.dna gain 3000` gives it brain 4 at once (the bar 3000) after its captions.
+
+## A herd's member list and Creature_SetHerd (2026-11-21, fix/evolve-nest)
+<a id="creature-herd-member-list"></a>
+
+BUG-9316 (a guest's crash in the end-of-Creature fire cinematic) and BUG-9270. Asm read from the running game (Steam
+build, the GOG 2024 code, `mem.read` on lane B, disassembled with capstone; addresses at the preferred base).
+
+* ✔ A herd's member list +0x40..+0x44 (capacity +0x48) is a vector of intrusive pointers: every entry holds a reference.
+  `SporeCoop::HerdList_Remove` 0xACC940 cdecl bool(vector*, T** value) erases the first entry equal to *value (the rest
+  moved down, the freed last slot Released); the creature's destroy 0xC083D0 calls it on the herd its +0x1674 names,
+  then clears +0x1674 and Releases that herd. `CreatureGame_JoinNestHerd` 0xD40C70 calls it on the avatar's old herd
+  and appends the avatar to the new herd's list (AddRef) before `Creature_SetHerd`.
+* ✔ `Creature_SetHerd` 0xC04700 does NOT touch any member list: it calls the old herd's 0xC6B5E0 (thiscall(herd,
+  creature) ret 4: only the herd's mom +0x164 and egg layer +0x194 let go of the creature), AddRefs the new herd,
+  Releases the old one and sets +0x1674. CORRECTION (2026-11-21, fix/evolve-nest): the `.sym` note "removes it from the
+  old herd (0xC6B5E0)" meant only the mom / layer; BUG-9270's "Creature_SetHerd moved them out but the list kept them"
+  is this.
+* ✔ So a creature moved with SetHerd stays in its old herd's list; when it is destroyed later, 0xC083D0 looks for it in
+  the new herd's list only, and the old list's reference keeps the destroyed creature alive with +0x1674 = 0.
+* ✔ The fire cinematic after the end-of-Creature editor (2677CD86, the caption "Congratulations! You are about to enter
+  the Tribal stage.") places the avatar herd's list members relative to their herd's nest (mode 3, as CRG_ClaimNest in
+  section 16): such a member
+  gives `Herd_NestPosition(null)`, read of 0x160 at 0xC6AE60 (the BUG-9316 guest crash, `eax=ecx=0`).
+* ✔ How a guest gets one: while it plays the host's species, the copies of the host's family (NF_FAMILY proxies) are made
+  in its avatar's herd (npc.cpp `proxy_herd`); own_family_tick (BUG-9262) moved copies of another species out of the
+  guest's own nest herd (its avatar's herd after the claim) with SetHerd only; the copies are destroyed later (the host
+  retires them, an editor), and the guest's avatar herd list keeps them.
+* Fix `creature.herd_list_stale` (game.cpp `move_to_herd`, `herd_list_purge`): the mod's moves take the creature out of
+  its old herd's list (HerdList_Remove) before SetHerd, and every frame of the Creature stage the avatar herd's list loses
+  each member whose +0x1674 is another herd or none (logged "left the member list (BUG-9316)"). `coop.nest herd <herd>`
+  marks such members `STALE`.
+

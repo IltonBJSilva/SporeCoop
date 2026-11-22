@@ -920,8 +920,9 @@ static void show_herd(SkOut* out, void* h)
             net::Vec3 p = game::position(*it);
             float og = 0;
             over_ground(p, og);
-            H->out_printf(out, "  member %p hp=%.1f dead=%d to_lay=%d pos=(%.1f %.1f %.1f) og=%.2f\n", *it, game::health(*it),
-                          (int)game::is_dead(*it), field<int>(*it, 0x1678), p.x, p.y, p.z, og);
+            H->out_printf(out, "  member %p hp=%.1f dead=%d to_lay=%d pos=(%.1f %.1f %.1f) og=%.2f herd=%p%s\n", *it, game::health(*it),
+                          (int)game::is_dead(*it), field<int>(*it, 0x1678), p.x, p.y, p.z, og, game::herd_of(*it),
+                          game::herd_of(*it) == h ? "" : " STALE"); // BUG-9316: listed here, in another herd (or none)
         }
     void** eb = field<void**>(h, 0x54);
     void** ee = field<void**>(h, 0x58);

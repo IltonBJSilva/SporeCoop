@@ -415,14 +415,6 @@ anchor so other docs can link to it:
 * Ticket: BUG-1279.
 
 
-## Own nests: the host's family copies stay in the guest's own nest herd list (2026-11-20, feat/lineages-nests)
-<a id="issue-own-nest-herd-list"></a>
-
-* What happens: on a guest's game that joined its own nest, `coop.nest herd <its home herd>` still lists the copies of
-  the host's family after they were moved to their own species' herd. No wrong behaviour seen yet.
-* Reproduce: tools/tests/coop_home_nests.py, then `coop.nest home` and `coop.nest herd <herd>` on the guest.
-* Ticket: BUG-9270
-
 ## Own start: what the start choice does not give yet (2026-11-20, feat/start-choice)
 <a id="issue-start-choice-limits"></a>
 
@@ -505,15 +497,6 @@ anchor so other docs can link to it:
 * Reproduce: a Civ session with the guest's nation, `coop.leave` on the guest while in Civ; its log shows "civ nations:
   founding seat 1's capital".
 * Ticket: BUG-9311.
-
-## Creature: a guest that chose its own creature mid-session crashed after its end-of-stage editor (2026-11-21, build/amigos-98)
-<a id="issue-guest-chosen-creature-nest-crash"></a>
-
-* What happens: a guest new to the world first plays the host's species, then chooses its own creature
-  (`coop.creations choose creature <key>`); at the end of Creature, 1.5 s after it leaves its editor, its game crashes
-  in Herd_NestPosition (a null nest) inside the evolve cinematic. The host is unaffected.
-* Reproduce: seen once (lane B, Marona of the dev1 galaxy copy, the 0.7.15.98 smoke); the steps are in the ticket.
-* Ticket: BUG-9316.
 
 ## Space: a guest homeworld the host's allies mirror never shows (2026-11-21, feat/space-guest-home)
 <a id="issue-space-guest-home-unmirrored"></a>

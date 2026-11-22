@@ -2951,7 +2951,7 @@ static void own_family_tick(double now)
             continue;
         const bool ours = px.key.instance == hk.instance || px.key.instance == lk;
         if (ours && game::herd_of(c) != home) {
-            skg::thiscall<void>(set_herd, c, home);
+            game::move_to_herd(c, home); // BUG-9316: out of its old herd's list too
             if (g_own_family_homed++ < 20)
                 H->log(M, SK_INFO, "npc: our own family's member #%u joins our own nest herd %p (BUG-9262)", (unsigned)id, home);
         } else if (!ours && game::herd_of(c) == home) {
@@ -2976,7 +2976,7 @@ static void own_family_tick(double now)
                 return true;
             }, &f);
             if (f.best) {
-                skg::thiscall<void>(set_herd, c, f.best);
+                game::move_to_herd(c, f.best); // BUG-9316: out of our nest herd's list too
                 if (g_own_family_homed++ < 20)
                     H->log(M, SK_INFO, "npc: #%u (another species) leaves our own nest herd for its species' nest herd %p (BUG-9262)",
                            (unsigned)id, f.best);
@@ -2994,6 +2994,8 @@ static void tick_frame(double now)
         remove_saved_strays(now);
     hatch_tick(now, !creatures.empty());
     own_family_tick(now); // BUG-9262
+    if (game::in_creature_stage()) // BUG-9316: no member of another herd (or a destroyed one) in the avatar herd's list
+        game::herd_list_purge(game::avatar_herd());
     if (g_leave_locals_due && !is_guest()) { // BUG-0412: the guest left; its game plays the planet on alone
         g_leave_locals_due = false;
         if (game::in_creature_stage() && game::avatar() && game::world_epoch() == g_away_snap_epoch &&

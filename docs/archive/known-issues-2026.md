@@ -3762,3 +3762,22 @@ Found by eye in the sheets of lab 20261111-044257 (54 sheets); details and how t
 * Reproduce: the Kealeneon fixture on lane C, the batch driver agentC4/t1.py, a screenshot of the guest after its launch.
 * Ticket: BUG-9297.
 * Fixed on fix/space-captain (2026-11-21): the own launch's Space start gets the guest's own captain and empire name at once (switch space.own_captain_local).
+
+## Own nests: the host's family copies stay in the guest's own nest herd list (2026-11-20, feat/lineages-nests)
+<a id="issue-own-nest-herd-list"></a>
+
+* What happens: on a guest's game that joined its own nest, `coop.nest herd <its home herd>` still lists the copies of
+  the host's family after they were moved to their own species' herd. No wrong behaviour seen yet.
+* Reproduce: tools/tests/coop_home_nests.py, then `coop.nest home` and `coop.nest herd <herd>` on the guest.
+* Ticket: BUG-9270
+* Fixed (2026-11-21, fix/evolve-nest): `creature.herd_list_stale` (docs/re/creature.md#creature-herd-member-list).
+
+## Creature: a guest that chose its own creature mid-session crashed after its end-of-stage editor (2026-11-21, build/amigos-98)
+<a id="issue-guest-chosen-creature-nest-crash"></a>
+
+* What happens: a guest new to the world first plays the host's species, then chooses its own creature
+  (`coop.creations choose creature <key>`); at the end of Creature, 1.5 s after it leaves its editor, its game crashes
+  in Herd_NestPosition (a null nest) inside the evolve cinematic. The host is unaffected.
+* Reproduce: seen once (lane B, Marona of the dev1 galaxy copy, the 0.7.15.98 smoke); the steps are in the ticket.
+* Ticket: BUG-9316.
+* Fixed (2026-11-21, fix/evolve-nest): `creature.herd_list_stale` (docs/re/creature.md#creature-herd-member-list).
