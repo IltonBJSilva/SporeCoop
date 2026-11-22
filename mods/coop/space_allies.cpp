@@ -1374,8 +1374,14 @@ static std::string colonize(uint32_t id, bool restore)
         return F<uint32_t>(star, 0x54) == pol ? "" : "a colony of another empire";
     if (F<uint32_t>(rec, 0x194) >= 4 && restore)
         return "a civilization lives there";
+    // BUG-9315: a star already in my empire's star list (a colony of mine that the game turned back into a plain
+    // planet, made again) is not added a second time (each entry is a star of my roster)
+    bool listed = false;
+    for (void* s : ptr_vec((uint8_t*)me + 0x88, 1024))
+        listed |= s == star;
     F<uint32_t>(star, 0x54) = pol;
-    thiscall<void>(a_AddStar, me, star);
+    if (!listed)
+        thiscall<void>(a_AddStar, me, star);
     cdecl_call<void>(a_PlanetTech, rec, 5);
     cdecl_call<void>(a_FillPlanet, rec, 5);
     thiscall<void>(a_AddPlanet, me, rec);

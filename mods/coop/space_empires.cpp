@@ -991,6 +991,18 @@ static bool g_home_apply_queued, g_home_told;
 static double g_next_home_try;
 static std::string g_home_last = "-"; // the last try's answer
 static uint32_t g_home_made, g_home_waits, g_home_fails, g_home_keys;
+// BUG-9315: the homeworld made my colony in the tick its star's planets were first generated (RequirePlanetsForStar from
+// colonize_own) was a plain planet again moments later (the same record, tech 5 -> 1; the star stayed mine), and
+// nothing looked again: my roster lists tech-5 planets only, so the host's allies mirror never showed my homeworld (lab
+// lane A 2026-11-21, store without that colony: FAIL in every run). Every few seconds the guest checks that the record is
+// still a colony of my empire and makes it again when it is not. `coop.fix space.guest_home_keep off`: made once per
+// world (0.7.15.98).
+static bool g_home_keep_fix = true;
+COOP_FIX("space.guest_home_keep", "BUG-9315", g_home_keep_fix,
+         "space: a guest's own homeworld that its game turned back into a plain planet is made its colony again (the "
+         "host's allies mirror shows it)");
+static uint32_t g_home_lost, g_home_checks;
+static double g_next_home_check;
 static void* g_home_star;            // the star record whose species key I set (pointer compared only)
 static uint32_t g_home_star_epoch;
 static uint32_t g_home_key_orig[3], g_home_key_mine[3];
@@ -999,6 +1011,20 @@ static uint32_t my_species()
     if (g_species && creations::key_known({g_species, 0x2B978C46u, 0x40626200u}))
         return g_species;
     return creations::mine(creations::kCreature).key.instance; // the creature this game plays (its own key)
+}
+// 1 the homeworld is a colony of my empire in this world, 0 it is not, -1 not known now (the star's planets not loaded)
+static int home_is_mine()
+{
+    void* me = player_empire();
+    void* st = spacecoop::star_record(g_home_planet & 0xFFFFFFu);
+    if (!rd(me, 0x88) || !rd(st, 0xB0))
+        return -1;
+    if (F<uint32_t>(st, 0x54) != F<uint32_t>(me, 0x84))
+        return 0;
+    for (void* r : ptrs((uint8_t*)st + 0x84, 64))
+        if (rd(r, 0x1A4) && F<uint32_t>(r, 0x184) == g_home_planet)
+            return F<uint32_t>(r, 0x194) == 5 ? 1 : 0;
+    return -1; // BUG-1203: a star's planet list is empty for a moment after a save
 }
 static void home_undo()
 {
@@ -1081,6 +1107,18 @@ static void guest_tick(double now)
     }
     if (!g_own)
         return;
+    if (g_home_keep_fix && g_home_planet && homes_on() && g_home_epoch == e && !g_home_apply_queued &&
+        now >= g_next_home_check) { // BUG-9315: still my colony?
+        g_next_home_check = now + 5.0;
+        g_home_checks++;
+        if (home_is_mine() == 0) {
+            g_home_lost++;
+            g_home_epoch = 0; // made again below
+            g_next_home_try = 0;
+            H->log(M, SK_WARN, "empires: my homeworld %08X is not my colony any more in this world: made again (BUG-9315)",
+                   g_home_planet);
+        }
+    }
     if (g_home_planet && homes_on() && g_home_epoch != e && !g_home_apply_queued && now >= g_next_home_try) { // BUG-9310
         g_home_apply_queued = true;
         g_next_home_try = now + 3.0;
@@ -1281,9 +1319,11 @@ static std::string status()
                  (int)homes_on(), home_rank_now(), homes.c_str(), g_home_picks, g_home_none, g_home_why.c_str(), g_home_sent);
     } else {
         void* st = g_home_planet ? spacecoop::star_record(g_home_planet & 0xFFFFFFu) : nullptr;
-        snprintf(hb, sizeof hb, "home: fix=%d on=%d planet=%08X mine_epoch=%u made=%u waits=%u fails=%u last=%s keys=%u citizens=%08X",
+        snprintf(hb, sizeof hb, "home: fix=%d on=%d planet=%08X mine_epoch=%u made=%u waits=%u fails=%u last=%s keys=%u citizens=%08X "
+                 "keep=%d checks=%u lost=%u",
                  (int)g_home_fix, (int)homes_on(), g_home_planet, g_home_epoch, g_home_made, g_home_waits, g_home_fails,
-                 g_home_last.c_str(), g_home_keys, rd(st, 0x80) ? F<uint32_t>(st, 0x74) : 0u);
+                 g_home_last.c_str(), g_home_keys, rd(st, 0x80) ? F<uint32_t>(st, 0x74) : 0u, (int)g_home_keep_fix,
+                 g_home_checks, g_home_lost);
     }
     return std::string(b) + "\n" + hb + "\n" + spacelaunch::status();
 }

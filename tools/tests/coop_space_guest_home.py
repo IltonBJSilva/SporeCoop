@@ -18,6 +18,13 @@ space_empires.cpp, start_any.cpp, docs/re/space.md#space-guest-home).
 5. After the host's saves its game still has the alliance with the guest's empire (BUG-9312: the game's flags, `coop.space
    diplomacy rel <pol>`).
 
+6. (BUG-9315) The homeworld stays a colony in the guest's game (its planet record: tech 5, not only the star) and the
+   host's allies mirror has that planet (`coop.space allies list`: `  planet <id>`, it skips nothing of the guest's but
+   the host's own homeworld, which the guest's game shares).
+
+SPORE_FIX_OFF=space.guest_home_keep: the game turns the homeworld made in the tick its star's planets were first
+generated back into a plain planet; the guest's roster and the host's mirror miss it (FAIL at check 6; lab lane A
+2026-11-21: in every run whose host store did not hold that colony already).
 SPORE_FIX_OFF=space.guest_home: no question, no empire for a guest without a species, no homeworld (FAIL at check 1 or 2).
 SPORE_FIX_OFF=diplomacy.mirror_ally: the game's attitude pass breaks the alliance made again after a save (check 5; seen
 in a reloaded world, not every first session: docs/re/space.md#space-mirror-ally-break).
@@ -50,6 +57,18 @@ def main():
     cap = re.search(r'captain=(\w+)', sp(guest, 'empires'))
     ck(m and cap and m.group(3) == cap.group(1) and cap.group(1) != '00000000',
        f'guest: its homeworld\'s citizens are its own species ({m.group(3) if m else "-"}) (2)')
+    if m:  # 6 (BUG-9315)
+        planet, star = m.group(1), m.group(2)
+        time.sleep(15)
+        rec = lambda: re.search(r'^  planet ' + planet + r" '[^']*' tech=(\d+)", sp(guest, 'allies star', star), re.M)
+        ck(wait(lambda: rec() and rec().group(1) == '5', 30), f'guest: its homeworld {planet} is still a colony (tech 5) (6)')
+        ck(wait(lambda: re.search(r'^  planet ' + planet, sp(host, 'allies list'), re.M), 60),
+           f"host: the allies mirror has the guest's homeworld {planet} (6)")
+        home0 = re.search(r' home \d+/(\w{8})', sp(host, 'map roster 0'))
+        skipped = re.findall(r'^  skipped (\w{8}):', sp(host, 'allies list'), re.M)
+        print('  host: mirror skips', skipped, 'host home', home0.group(1) if home0 else '-')
+        ck(all(home0 and p == home0.group(1) for p in skipped),
+           "host: the mirror skips none of the guest's planets but the host's own homeworld (6)")
     hsp = re.search(r'empire seat=\d+ name=\S+ species=(\w+)', sp(host, 'empires'))
     hsp = hsp.group(1) if hsp else '?'
     ok = wait(lambda: re.search(r'dist=[1-9][\d.]* owner=(?!FFFFFFFF)\w+ citizens=' + hsp, sp(host, 'empires home')), 60)
