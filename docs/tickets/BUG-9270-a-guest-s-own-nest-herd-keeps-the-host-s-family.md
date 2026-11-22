@@ -10,7 +10,7 @@ role:
 versions: 
 fixed_in: unreleased
 branch: fix/evolve-nest
-commits:
+commits: be72cff6
 tests: E:/Repositorio/SporeCoop-wt/evnest/t9316.py (two games, lane B)
 signature:
 docs: docs/re/creature.md#creature-herd-member-list

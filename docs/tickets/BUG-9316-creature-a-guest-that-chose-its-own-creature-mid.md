@@ -10,7 +10,7 @@ role: guest
 versions: 0.7.15.98
 fixed_in: unreleased
 branch: fix/evolve-nest
-commits:
+commits: be72cff6
 tests: E:/Repositorio/SporeCoop-wt/evnest/t9316.py (two games, lane B)
 signature: dc04aee5:0x016DAE60 read 0x160 (Herd_NestPosition, eax=ecx=0) < CineScript_Resume (stack scan), guest, mode Creature right after Editor -> Creature at the stage end
 docs: docs/re/creature.md#creature-herd-member-list
